@@ -1,0 +1,12 @@
+{
+  "name": "kig-preview-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.53.2"
+  }
+}

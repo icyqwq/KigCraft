@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kig_preview}
+      POSTGRES_USER: ${POSTGRES_USER:-kig}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-postgres-password}
+    ports:
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-kig}\" -d \"$${POSTGRES_DB:-kig_preview}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kig_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio-password}
+    ports:
+      - "${MINIO_BIND_HOST:-127.0.0.1}:19000:9000"
+      - "${MINIO_BIND_HOST:-127.0.0.1}:19001:9001"
+    volumes:
+      - minio-data:/data
+
+  api:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
+      TRUSTED_PROXY_HOSTS: "${TRUSTED_PROXY_HOSTS:-*}"
+      GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS: "${GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS:-300}"
+      GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS: "${GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS:-3}"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "${API_BIND_HOST:-127.0.0.1}:18000:8000"
+    volumes:
+      - ./backend:/app
+      - ./tools:/tools:ro
+      - ./runtime:/runtime
+      - ./runtime:/app/runtime
+      - ./ref:/ref:ro
+      - ./ref:/app/ref:ro
+      - ${CODEX_CONFIG_DIR:-./runtime/codex-home}:/root/.codex
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
+      TRUSTED_PROXY_HOSTS: "${TRUSTED_PROXY_HOSTS:-*}"
+      GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS: "${GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS:-300}"
+      GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS: "${GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS:-3}"
+    command: python -m app.generation.worker
+    volumes:
+      - ./backend:/app
+      - ./tools:/tools:ro
+      - ./runtime:/runtime
+      - ./runtime:/app/runtime
+      - ./ref:/ref:ro
+      - ./ref:/app/ref:ro
+      - ${CODEX_CONFIG_DIR:-./runtime/codex-home}:/root/.codex
+    depends_on:
+      api:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_BIND_HOST:-127.0.0.1}:15173:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:
+  minio-data:

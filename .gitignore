@@ -1,0 +1,56 @@
+# Python
+.venv/
+__pycache__/
+.pytest-tmp/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.pyc
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+coverage/
+.vite/
+*.log
+.npm-cache/
+.uv-cache/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Local runtime data
+.env
+.env.*
+!.env.example
+runtime/
+storage/
+minio-data/
+postgres-data/
+redis-data/
+.tools/
+.tool-probe/
+.smoke-runtime/
+.codex-runtime/
+artifacts/
+.worktrees/
+tools/output.png*
+
+# Local reference assets
+ref/
+
+# Generated uploads and outputs
+uploads/
+outputs/
+
+# Open-source hygiene
+.superpowers/
+.codex*/
+docs/superpowers/
+skills-lock.json
+.tmp-*
+AGENTS.md
+CLAUDE.md
+GEMINI.md

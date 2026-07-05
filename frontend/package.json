@@ -1,0 +1,47 @@
+{
+  "name": "kig-preview-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "serve": "node server.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mediapipe/tasks-vision": "^0.10.35",
+    "@mui/icons-material": "^9.1.1",
+    "@mui/material": "^9.1.2",
+    "@tabler/icons-react": "^3.44.0",
+    "@tanstack/react-query": "5.81.5",
+    "i18next": "^26.3.4",
+    "konva": "^10.3.0",
+    "motion": "^12.40.0",
+    "onnxruntime-web": "^1.27.0",
+    "pixi.js": "8.10.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-i18next": "^17.0.8",
+    "react-konva": "^19.0.10",
+    "react-router-dom": "7.6.3",
+    "zod": "3.25.67",
+    "zustand": "5.0.6"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "5.0.0",
+    "autoprefixer": "10.4.21",
+    "jsdom": "^29.1.1",
+    "postcss": "8.5.6",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.8.3",
+    "vite": "7.0.0",
+    "vitest": "3.2.4"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules
+dist
+.vite
+.env
+.env.*
+*.log
+coverage
+playwright-report
+test-results

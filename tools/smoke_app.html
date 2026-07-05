@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kig Preview Smoke</title>
+    <style>
+      body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; background: #f5f7fb; color: #172033; }
+      main { max-width: 1120px; margin: 0 auto; padding: 24px; display: grid; gap: 18px; }
+      section { background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 8px 24px rgba(23, 32, 51, 0.08); }
+      h1 { margin: 0 0 4px; font-size: 28px; }
+      h2 { margin: 0 0 10px; font-size: 20px; }
+      p { color: #64748b; }
+      textarea { width: 100%; min-height: 90px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; box-sizing: border-box; }
+      button { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+      button[aria-pressed="true"] { border-color: #2563eb; background: #dbeafe; color: #1d4ed8; }
+      button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+      button:disabled { cursor: not-allowed; background: #cbd5e1; border-color: #cbd5e1; }
+      .chips, .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .candidate { aspect-ratio: 4 / 3; text-align: left; background: linear-gradient(135deg, #fff, #eef6ff); }
+      .status { padding: 10px; background: #f1f5f9; border-radius: 8px; }
+      .editor-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; }
+      canvas { width: 100%; max-width: 760px; aspect-ratio: 19 / 12; border: 1px solid #cbd5e1; border-radius: 10px; background: #f1f5f9; display: block; }
+      output { background: #f1f5f9; padding: 4px 8px; border-radius: 6px; }
+      input[type="range"] { width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Kig Preview</h1>
+        <p>上传参考图，组合 prompt，生成四视角成品预览。</p>
+      </header>
+
+      <section>
+        <h2>1. 上传参考图</h2>
+        <input aria-label="上传参考图" type="file" id="file" accept="image/png,image/jpeg,image/webp" multiple />
+        <ul id="files"></ul>
+      </section>
+
+      <section>
+        <h2>Prompt 积木</h2>
+        <textarea aria-label="Prompt 自由描述" placeholder="描述表情、发型、发饰、需要保留或强化的细节"></textarea>
+        <div id="chips" class="chips"></div>
+      </section>
+
+      <button id="generate" class="primary" disabled>生成 4 个方案</button>
+
+      <section>
+        <h2>2. 等待生成并选择版本</h2>
+        <div id="empty">提交后这里会显示排队和生成状态。</div>
+        <div id="review" hidden>
+          <div class="status">
+            <div data-testid="generation-job-id" id="jobid"></div>
+            <div id="jobstatus"></div>
+          </div>
+          <div id="outputs" class="grid"></div>
+        </div>
+      </section>
+
+      <section id="editor" hidden>
+        <h2 id="editor-title">3. 编辑候选 1</h2>
+        <p>PixiJS 标注画布已接入，可预览液化/位移强度。</p>
+        <canvas id="canvas" width="760" height="480" role="img" aria-label="Head editing preview with four candidates and visible liquify annotations"></canvas>
+        <div class="editor-grid">
+          <label>编辑备注<textarea id="note">保留下颌轮廓，轻微推高右侧脸颊。</textarea></label>
+          <label>
+            <span>液化/位移强度 <output id="strength-value">24</output></span>
+            <input id="strength" type="range" min="0" max="80" value="24" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="regenerate">用编辑结果重新生成</button>
+          <button id="save" class="primary">保存至相册</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>相册</h2>
+        <p id="album">已保存结果：0</p>
+      </section>
+    </main>
+
+    <script>
+      const state = { references: [], chips: [], selectedChips: new Set(), job: null, selected: null, saved: 0 };
+      const fileInput = document.querySelector("#file");
+      const files = document.querySelector("#files");
+      const generate = document.querySelector("#generate");
+      const review = document.querySelector("#review");
+      const empty = document.querySelector("#empty");
+      const outputs = document.querySelector("#outputs");
+      const editor = document.querySelector("#editor");
+      const canvas = document.querySelector("#canvas");
+      const ctx = canvas.getContext("2d");
+      const strength = document.querySelector("#strength");
+      const strengthValue = document.querySelector("#strength-value");
+
+      async function loadChips() {
+        const response = await fetch("/api/prompts/chips");
+        state.chips = await response.json();
+        document.querySelector("#chips").replaceChildren(...state.chips.map((chip) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = chip.label;
+          button.setAttribute("aria-pressed", "false");
+          button.addEventListener("click", () => {
+            if (state.selectedChips.has(chip.id)) state.selectedChips.delete(chip.id);
+            else state.selectedChips.add(chip.id);
+            button.setAttribute("aria-pressed", String(state.selectedChips.has(chip.id)));
+          });
+          return button;
+        }));
+      }
+
+      fileInput.addEventListener("change", () => {
+        state.references = Array.from(fileInput.files || []).map((file) => file.name);
+        files.replaceChildren(...state.references.map((name) => {
+          const item = document.createElement("li");
+          item.textContent = name;
+          return item;
+        }));
+        generate.disabled = state.references.length === 0;
+      });
+
+      async function requestGeneration() {
+        generate.disabled = true;
+        const response = await fetch("/api/generation/projects/demo-project/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        state.job = await response.json();
+        generate.disabled = state.references.length === 0;
+        renderJob();
+      }
+
+      generate.addEventListener("click", requestGeneration);
+      document.querySelector("#regenerate").addEventListener("click", requestGeneration);
+      document.querySelector("#save").addEventListener("click", () => {
+        state.saved += 1;
+        document.querySelector("#album").textContent = `已保存结果：${state.saved}`;
+      });
+
+      function renderJob() {
+        empty.hidden = true;
+        review.hidden = false;
+        document.querySelector("#jobid").textContent = `任务：${state.job.id.slice(0, 8)}`;
+        document.querySelector("#jobstatus").textContent = `状态：${state.job.status}，进度：${state.job.progress}%`;
+        outputs.replaceChildren(...state.job.outputs.map((output) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "candidate";
+          button.innerHTML = `<strong>候选 ${output.index}</strong><br><span>四视角成品拼图 ${output.width}×${output.height}</span>`;
+          button.addEventListener("click", () => {
+            state.selected = output.index;
+            document.querySelector("#editor-title").textContent = `3. 编辑候选 ${output.index}`;
+            editor.hidden = false;
+            drawCanvas(Number(strength.value));
+          });
+          return button;
+        }));
+      }
+
+      function drawCanvas(value) {
+        strengthValue.textContent = String(value);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < 4; i += 1) {
+          const x = 48 + (i % 2) * 344;
+          const y = 48 + Math.floor(i / 2) * 196;
+          ctx.fillStyle = i + 1 === state.selected ? "#dbeafe" : "#fff";
+          ctx.strokeStyle = i + 1 === state.selected ? "#0ea5e9" : "#cbd5e1";
+          ctx.lineWidth = i + 1 === state.selected ? 5 : 2;
+          ctx.roundRect(x, y, 320, 172, 14);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = ["#2e2933", "#45342c", "#1f3d4b", "#6b4332"][i];
+          ctx.beginPath(); ctx.ellipse(x + 108 + value * 0.12, y + 58, 54, 34, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "#ffd8bd";
+          ctx.beginPath(); ctx.arc(x + 108 + value * 0.18, y + 86 - value * 0.06, 45 + value * 0.08, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.strokeStyle = "#f97316";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(156 + value * 0.9, 126 - value * 0.24, 58 + value * 0.35, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(20, 184, 166, 0.35)";
+        ctx.fillRect(548, 392 - value * 0.48, 88 + value * 0.9, 22);
+      }
+
+      strength.addEventListener("input", () => drawCanvas(Number(strength.value)));
+      loadChips();
+    </script>
+  </body>
+</html>
