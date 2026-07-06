@@ -300,6 +300,10 @@ function clampNormalizedDelta(value: number) {
   return Math.min(0.35, Math.max(-0.35, Number(value.toFixed(4))));
 }
 
+function clampSymmetryAxis(value: number) {
+  return Math.min(1, Math.max(0, Number(value.toFixed(4))));
+}
+
 export function createLiquifyStrokeFromNormalizedPoint({
   x,
   y,
@@ -355,6 +359,34 @@ export function updateLiquifyBrush(recipe: EditRecipe, stroke: LiquifyStroke): E
   };
 }
 
+export function estimateLiquifySymmetryAxis(recipe: EditRecipe): number {
+  const landmarks = completeLandmarks(recipe.landmarks ?? createDefaultLandmarks(1, 1));
+  const eyeCenterX = (landmarks.leftEye.x + landmarks.rightEye.x) / 2;
+
+  return clampSymmetryAxis((landmarks.chin.x + landmarks.mouthCenter.x + eyeCenterX) / 3);
+}
+
+export function mirrorLiquifyWarpStroke(stroke: LiquifyStroke, axisX: number): LiquifyStroke {
+  if (stroke.mode !== "warp") return stroke;
+
+  return createLiquifyStrokeFromNormalizedPoint({
+    ...stroke,
+    deltaX: -(stroke.deltaX ?? 0),
+    deltaY: stroke.deltaY ?? 0,
+    x: clampSymmetryAxis(axisX) * 2 - stroke.x,
+    y: stroke.y,
+  });
+}
+
+export function updateLiquifyBrushPair(recipe: EditRecipe, stroke: LiquifyStroke, axisX: number): EditRecipe {
+  if (stroke.mode !== "warp") return updateLiquifyBrush(recipe, stroke);
+
+  return {
+    ...recipe,
+    liquify: [...recipe.liquify, stroke, mirrorLiquifyWarpStroke(stroke, axisX)],
+  };
+}
+
 export function updateLiquifyScaleBrush(
   recipe: EditRecipe,
   brush: { radius: number; scale: number; x?: number; y?: number },
@@ -371,7 +403,7 @@ export function updateLiquifyScaleBrush(
 
   return {
     ...recipe,
-    liquify: [...recipe.liquify, nextStroke],
+    liquify: [...recipe.liquify.filter((stroke) => stroke.mode !== "scale"), nextStroke],
   };
 }
 

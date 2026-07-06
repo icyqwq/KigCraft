@@ -228,6 +228,19 @@ describe("WorkflowPage", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
+  it("keeps desktop language and GitHub actions aligned after about", () => {
+    renderWorkflow();
+
+    const aboutButton = screen.getByTestId("header-nav-about");
+    const languageButton = screen.getByTestId("header-language-button");
+    const githubButton = screen.getByTestId("header-github-link");
+
+    expect(Boolean(aboutButton.compareDocumentPosition(languageButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(languageButton.compareDocumentPosition(githubButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(languageButton).toHaveStyle({ height: "40px" });
+    expect(githubButton).toHaveStyle({ height: "40px", width: "40px" });
+  });
+
   it("uses the full content width instead of a persistent right sidebar", () => {
     renderWorkflow();
 

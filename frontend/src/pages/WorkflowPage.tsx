@@ -19,6 +19,7 @@ import {
 } from "../ui/mui";
 import {
   IconAlertCircle,
+  IconBrandGithub,
   IconBrandQq,
   IconBrush,
   IconHistory,
@@ -1451,17 +1452,29 @@ export function WorkflowPage() {
                       </Group>
                     </MenuItem>
                   ))}
+                  <MenuItem
+                    component="a"
+                    data-testid="header-github-link"
+                    href="https://github.com/icyqwq/KigCraft"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <Group gap={1}>
+                      <IconBrandGithub size={16} />
+                      <Text size="sm">GitHub</Text>
+                    </Group>
+                  </MenuItem>
                 </Menu>
               </Group>
             ) : (
               <Group gap={1} ml="auto" wrap="nowrap">
-                <LanguageSelector />
                 {headerNavItems.map((item) => {
                   const NavIcon = item.icon;
                   const active = activeHeaderView === item.id;
                   return (
                     <Button
                       key={item.id}
+                      data-testid={`header-nav-${item.id}`}
                       h={40}
                       leftSection={<NavIcon size={16} />}
                       onClick={() => setActiveHeaderView(item.id)}
@@ -1477,6 +1490,23 @@ export function WorkflowPage() {
                     </Button>
                   );
                 })}
+                <LanguageSelector />
+                <Button
+                  aria-label="GitHub"
+                  component="a"
+                  data-testid="header-github-link"
+                  h={40}
+                  href="https://github.com/icyqwq/KigCraft"
+                  miw={40}
+                  px={0}
+                  rel="noreferrer"
+                  target="_blank"
+                  title="GitHub"
+                  style={{ backgroundColor: "var(--kb-panel)", color: "var(--kb-ink)", width: 40 }}
+                  variant="light"
+                >
+                  <IconBrandGithub size={18} />
+                </Button>
               </Group>
             )}
           </Group>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createDefaultLandmarks } from "./landmarks";
 import {
   addAnnotationMark,
   addDetailRegion,
@@ -7,6 +8,8 @@ import {
   createEmptyRecipe,
   createLiquifyStrokeFromNormalizedPoint,
   createLiquifyWarpStrokeFromDrag,
+  estimateLiquifySymmetryAxis,
+  mirrorLiquifyWarpStroke,
   moveAnnotationMark,
   normalizeEditRecipe,
   removeAnnotationMark,
@@ -16,6 +19,7 @@ import {
   updateEyeControl,
   updateFaceControl,
   updateLiquifyBrush,
+  updateLiquifyBrushPair,
   updateManualLandmark,
   updateMouthControl,
 } from "./recipe";
@@ -174,6 +178,56 @@ describe("editor recipe", () => {
       x: 0.255,
       y: 0.375,
     });
+  });
+
+  it("mirrors deformation brush strokes across the selected face centerline", () => {
+    const stroke = createLiquifyWarpStrokeFromDrag({
+      from: { x: 0.2, y: 0.6 },
+      radius: 80,
+      strength: 0.2,
+      to: { x: 0.3, y: 0.55 },
+    });
+
+    expect(mirrorLiquifyWarpStroke(stroke, 0.52)).toEqual(expect.objectContaining({
+      deltaX: -0.1,
+      deltaY: -0.05,
+      mode: "warp",
+      radius: 80,
+      strength: 0.2,
+      x: 0.79,
+      y: 0.575,
+    }));
+  });
+
+  it("appends original and mirrored warp strokes as one symmetric brush update", () => {
+    const stroke = createLiquifyWarpStrokeFromDrag({
+      from: { x: 0.35, y: 0.5 },
+      radius: 96,
+      strength: 0.25,
+      to: { x: 0.4, y: 0.54 },
+    });
+
+    const recipe = updateLiquifyBrushPair(createEmptyRecipe(), stroke, 0.5);
+
+    expect(recipe.liquify).toEqual([
+      expect.objectContaining({ deltaX: 0.05, deltaY: 0.04, x: 0.375 }),
+      expect.objectContaining({ deltaX: -0.05, deltaY: 0.04, x: 0.625 }),
+    ]);
+  });
+
+  it("estimates the liquify symmetry axis from face landmarks", () => {
+    const recipe = {
+      ...createEmptyRecipe(),
+      landmarks: {
+        ...createDefaultLandmarks(1, 1),
+        chin: { x: 0.51, y: 0.78 },
+        leftEye: { x: 0.38, y: 0.34 },
+        mouthCenter: { x: 0.49, y: 0.63 },
+        rightEye: { x: 0.62, y: 0.34 },
+      },
+    };
+
+    expect(estimateLiquifySymmetryAxis(recipe)).toBe(0.5);
   });
 
   it("keeps local scale as a single adjustable cursor in the liquify recipe", () => {

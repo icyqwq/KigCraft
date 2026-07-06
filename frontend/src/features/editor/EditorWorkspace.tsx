@@ -35,10 +35,10 @@ import {
   addAnnotationMark,
   buildAnnotationPrompt,
   compactRecipeAnnotations,
-  createLiquifyStrokeFromNormalizedPoint,
   createLiquifyWarpStrokeFromDrag,
   createEmptyRecipe,
   defaultEyeControlValues,
+  estimateLiquifySymmetryAxis,
   moveAnnotationMark,
   normalizeEditRecipe,
   removeAnnotationMark,
@@ -47,6 +47,8 @@ import {
   updateEyeControl,
   updateFaceControl,
   updateLiquifyBrush,
+  updateLiquifyBrushPair,
+  updateLiquifyScaleBrush,
   updateManualLandmark,
   updateMouthControl,
   type EditRecipe,
@@ -144,6 +146,8 @@ const defaultLiquifyToolMode: LiquifyToolMode = "warp";
 const defaultEditorTools: EditorTool[] = ["annotation", "face", "eyes", "mouth", "liquify", "local-generate"];
 const minEditorZoom = 0.4;
 const maxEditorZoom = 2.2;
+const minLiquifySymmetryAxis = 0.35;
+const maxLiquifySymmetryAxis = 0.65;
 const touchLongPressMs = 560;
 const touchMoveTolerance = 10;
 
@@ -197,6 +201,9 @@ type ViewportGesture = {
 
 function clampEditorZoom(value: number) {
   return Math.min(maxEditorZoom, Math.max(minEditorZoom, Number(value.toFixed(2))));
+}
+function clampLiquifySymmetryAxis(value: number) {
+  return Math.min(maxLiquifySymmetryAxis, Math.max(minLiquifySymmetryAxis, Number(value.toFixed(4))));
 }
 function recipesMatch(left: EditRecipe, right: EditRecipe) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -309,6 +316,8 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   const [brushRadius, setBrushRadius] = useState(defaultBrushRadius);
   const [liquifyScaleAmount, setLiquifyScaleAmount] = useState(defaultLiquifyScaleAmount);
   const [liquifyWarpStrength, setLiquifyWarpStrength] = useState(defaultLiquifyWarpStrength);
+  const [liquifySymmetryEnabled, setLiquifySymmetryEnabled] = useState(true);
+  const [manualLiquifySymmetryAxis, setManualLiquifySymmetryAxis] = useState<number | null>(null);
   const [liquifyBrushPreview, setLiquifyBrushPreview] = useState<{
     active: boolean;
     mode: LiquifyToolMode;
@@ -481,6 +490,8 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
         : recipe,
     [pendingScaleStroke, recipe],
   );
+  const automaticLiquifySymmetryAxis = useMemo(() => estimateLiquifySymmetryAxis(recipe), [recipe]);
+  const liquifySymmetryAxis = clampLiquifySymmetryAxis(manualLiquifySymmetryAxis ?? automaticLiquifySymmetryAxis);
   const visibleLiquifyBrushPreview =
     activeTool === "liquify"
       ? liquifyToolMode === "scale" && scaleBrushPoint
@@ -1526,19 +1537,24 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     setLiquifyWarpStrength(defaultLiquifyWarpStrength);
   }
 
+  function handleLiquifySymmetryAxisChange(value: number) {
+    setManualLiquifySymmetryAxis(clampLiquifySymmetryAxis(value));
+  }
+
+  function handleLiquifySymmetryAxisReset() {
+    setManualLiquifySymmetryAxis(null);
+  }
+
   function handleLiquifyScaleAmountChange(value: number) {
     setLiquifyScaleAmount(value);
     const point = scaleBrushPoint ?? lastStagePointRef.current;
     if (!point || value === 0) return;
-    const stroke = createLiquifyStrokeFromNormalizedPoint({
-      mode: "scale",
+    updateRecipe((currentRecipe) => updateLiquifyScaleBrush(currentRecipe, {
       radius: brushRadius,
       scale: value / 10,
-      strength: Math.abs(value / 10),
       x: point.x,
       y: point.y,
-    });
-    updateRecipe((currentRecipe) => updateLiquifyBrush(currentRecipe, stroke), {
+    }), {
       history: "liquify",
       historyKey: `scale:${liquifyOperationIdRef.current}`,
     });
@@ -1706,10 +1722,16 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
       const from = lastLiquifyStrokePointRef.current;
       const stroke = createLiquifyWarpStrokeFromDrag({ from, radius: brushRadius, strength: liquifyWarpStrength, to: point });
       if (stroke.strength > 0) {
-        updateRecipe((currentRecipe) => updateLiquifyBrush(currentRecipe, stroke), {
-          history: "liquify",
-          historyKey: activeLiquifyHistoryKeyRef.current ?? undefined,
-        });
+        updateRecipe(
+          (currentRecipe) =>
+            liquifySymmetryEnabled
+              ? updateLiquifyBrushPair(currentRecipe, stroke, liquifySymmetryAxis)
+              : updateLiquifyBrush(currentRecipe, stroke),
+          {
+            history: "liquify",
+            historyKey: activeLiquifyHistoryKeyRef.current ?? undefined,
+          },
+        );
       }
       lastLiquifyStrokePointRef.current = point;
       setLiquifyBrushPreview({ active: true, mode: "warp", radius: brushRadius, x: point.x, y: point.y });
@@ -2334,11 +2356,16 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
           onRedo={handleRedo}
           onScaleChange={handleLiquifyScaleAmountChange}
           onScaleReset={handleLiquifyScaleAmountReset}
+          onSymmetryAxisChange={handleLiquifySymmetryAxisChange}
+          onSymmetryAxisReset={handleLiquifySymmetryAxisReset}
+          onSymmetryEnabledChange={setLiquifySymmetryEnabled}
           onToolModeChange={setLiquifyToolMode}
           onUndo={handleUndo}
           onWarpStrengthChange={handleLiquifyWarpStrengthChange}
           onWarpStrengthReset={handleLiquifyWarpStrengthReset}
           scaleAmount={liquifyScaleAmount}
+          symmetryAxis={liquifySymmetryAxis}
+          symmetryEnabled={liquifySymmetryEnabled}
           toolMode={liquifyToolMode}
           warpStrength={liquifyWarpStrength}
         />
@@ -2800,6 +2827,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                         eyeRegionScale={recipe.eyes.eyeRegionScale}
                         height={stageHeight}
                         landmarks={currentLandmarks}
+                        liquifySymmetryAxis={liquifySymmetryAxis}
                         liquifyStrokes={recipe.liquify}
                         onAnnotationDelete={handleAnnotationDelete}
                         onAnnotationHandlePointerDown={handleAnnotationHandlePointerDown}
@@ -2810,6 +2838,9 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                         secondaryLandmarks={secondaryLandmarks}
                         showLandmarkDebug={landmarkDebugMode}
                         showLandmarks={effectiveShowLandmarks || landmarkDebugMode}
+                        showLiquifySymmetryAxis={
+                          activeTool === "liquify" && liquifyToolMode === "warp" && liquifySymmetryEnabled
+                        }
                         showSecondaryLandmarks={landmarkDebugMode && !landmarkDebugInfo}
                         showLiquifyStrokes={activeTool === "liquify"}
                         visible={

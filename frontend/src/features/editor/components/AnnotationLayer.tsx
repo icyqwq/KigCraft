@@ -13,12 +13,14 @@ export type AnnotationLayerProps = {
   eyeRegionScale?: number;
   height: number;
   landmarks?: ManualLandmarks;
+  liquifySymmetryAxis?: number;
   liquifyStrokes?: LiquifyStroke[];
   secondaryLandmarks?: LandmarkPoint[];
   selectedAnnotationId?: string | null;
   selectedLandmarkKey?: ManualLandmarkKey | null;
   showLandmarkDebug?: boolean;
   showLandmarks?: boolean;
+  showLiquifySymmetryAxis?: boolean;
   showLiquifyStrokes?: boolean;
   showSecondaryLandmarks?: boolean;
   visible?: boolean;
@@ -101,12 +103,14 @@ export function AnnotationLayer({
   eyeRegionScale,
   height,
   landmarks,
+  liquifySymmetryAxis = 0.5,
   liquifyStrokes = [],
   secondaryLandmarks = [],
   selectedLandmarkKey,
   selectedAnnotationId,
   showLandmarkDebug = false,
   showLandmarks = false,
+  showLiquifySymmetryAxis = false,
   showLiquifyStrokes = false,
   showSecondaryLandmarks = false,
   visible = true,
@@ -506,6 +510,40 @@ export function AnnotationLayer({
             );
           })
         : null}
+
+      {showLiquifySymmetryAxis ? (
+        <div
+          aria-hidden="true"
+          data-axis={Math.min(1, Math.max(0, liquifySymmetryAxis)).toFixed(4)}
+          data-testid="liquify-symmetry-axis"
+          style={{
+            borderLeft: "2px dashed rgba(34, 211, 238, 0.95)",
+            bottom: 0,
+            boxShadow: "0 0 0 1px rgba(15, 23, 42, 0.5), 0 0 12px rgba(34, 211, 238, 0.45)",
+            left: toPercent(liquifySymmetryAxis),
+            pointerEvents: "none",
+            position: "absolute",
+            top: 0,
+            transform: "translateX(-1px)",
+            zIndex: 6,
+          }}
+        >
+          <span
+            style={{
+              background: "rgba(34, 211, 238, 0.9)",
+              border: "2px solid rgba(15, 23, 42, 0.78)",
+              boxShadow: "var(--kb-hard-shadow-sm)",
+              display: "block",
+              height: 14,
+              left: 0,
+              position: "absolute",
+              top: 8,
+              transform: "translateX(-50%)",
+              width: 14,
+            }}
+          />
+        </div>
+      ) : null}
 
       {showLandmarkDebug && debugFaceBox ? (
         <div

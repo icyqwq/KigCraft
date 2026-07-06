@@ -27,8 +27,12 @@ export function LanguageSelector({ compact = false }: { compact?: boolean }) {
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={ariaLabel}
+        data-testid="header-language-button"
+        h={40}
         leftSection={<IconLanguage size={16} />}
+        miw={compact ? 40 : 124}
         onClick={(event: MouseEvent<HTMLButtonElement>) => setAnchorEl(event.currentTarget)}
+        px={compact ? 0 : undefined}
         size="sm"
         variant="light"
       >

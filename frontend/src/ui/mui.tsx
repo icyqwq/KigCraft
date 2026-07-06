@@ -673,22 +673,33 @@ export function NumberInput({
 }
 
 export function Switch({
+  "aria-label": ariaLabel,
   checked,
+  "data-testid": dataTestId,
   label,
   onChange,
 }: {
+  "aria-label"?: string;
   checked?: boolean;
+  "data-testid"?: string;
   label?: ReactNode;
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   const language = useLiteralLanguage();
   const translatedLabel = translateLiteralNode(label, language);
+  const translatedAriaLabel =
+    typeof ariaLabel === "string"
+      ? translateLiteralString(ariaLabel, language)
+      : typeof translatedLabel === "string"
+        ? translatedLabel
+        : undefined;
   return (
     <Group align="center" gap={1}>
       <MuiSwitch
         checked={checked}
+        data-testid={dataTestId}
         onChange={onChange}
-        slotProps={typeof translatedLabel === "string" ? { input: { "aria-label": translatedLabel } } : undefined}
+        slotProps={{ input: { "aria-label": translatedAriaLabel } }}
       />
       {translatedLabel ? <Text size="sm">{translatedLabel}</Text> : null}
     </Group>

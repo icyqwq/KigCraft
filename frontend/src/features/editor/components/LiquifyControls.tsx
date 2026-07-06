@@ -1,4 +1,4 @@
-import { ActionIcon, Group, SegmentedControl, Slider, Stack, Text, Tooltip } from "../../../ui/mui";
+import { ActionIcon, Group, SegmentedControl, Slider, Stack, Switch, Text, Tooltip } from "../../../ui/mui";
 import { IconArrowBackUp, IconArrowForwardUp, IconRefresh } from "@tabler/icons-react";
 
 export type LiquifyToolMode = "warp" | "scale";
@@ -14,6 +14,8 @@ export type LiquifyControlsProps = {
   canUndo: boolean;
   compact?: boolean;
   scaleAmount: number;
+  symmetryAxis: number;
+  symmetryEnabled: boolean;
   toolMode: LiquifyToolMode;
   warpStrength: number;
   onBrushRadiusChange: (value: number) => void;
@@ -21,6 +23,9 @@ export type LiquifyControlsProps = {
   onRedo: () => void;
   onScaleChange: (value: number) => void;
   onScaleReset: () => void;
+  onSymmetryAxisChange: (value: number) => void;
+  onSymmetryAxisReset: () => void;
+  onSymmetryEnabledChange: (enabled: boolean) => void;
   onToolModeChange: (mode: LiquifyToolMode) => void;
   onUndo: () => void;
   onWarpStrengthChange: (value: number) => void;
@@ -33,6 +38,8 @@ export function LiquifyControls({
   canUndo,
   compact = false,
   scaleAmount,
+  symmetryAxis,
+  symmetryEnabled,
   toolMode,
   warpStrength,
   onBrushRadiusChange,
@@ -40,6 +47,9 @@ export function LiquifyControls({
   onRedo,
   onScaleChange,
   onScaleReset,
+  onSymmetryAxisChange,
+  onSymmetryAxisReset,
+  onSymmetryEnabledChange,
   onToolModeChange,
   onUndo,
   onWarpStrengthChange,
@@ -128,6 +138,54 @@ export function LiquifyControls({
               </ActionIcon>
             </Tooltip>
           </Group>
+          <Group justify="space-between" wrap="nowrap">
+            <Text c="white" fw={600} size="sm">
+              对称
+            </Text>
+            <Switch
+              aria-label="对称液化"
+              checked={symmetryEnabled}
+              data-testid="liquify-symmetry-toggle"
+              onChange={(event) => onSymmetryEnabledChange(event.currentTarget.checked)}
+            />
+          </Group>
+          {symmetryEnabled ? (
+            <Stack gap={0.75}>
+              <Group justify="space-between" wrap="nowrap">
+                <Text c="white" fw={600} size="sm">
+                  脸中线
+                </Text>
+                <Text c="dimmed" size="sm">
+                  {(symmetryAxis * 100).toFixed(1)}%
+                </Text>
+              </Group>
+              <Group align="center" gap="xs" wrap="nowrap">
+                <Slider
+                  color="cyan"
+                  data-testid="liquify-symmetry-axis-slider"
+                  max={0.65}
+                  min={0.35}
+                  onChange={onSymmetryAxisChange}
+                  size="sm"
+                  step={0.001}
+                  style={{ flex: 1 }}
+                  thumbLabel="脸中线"
+                  value={symmetryAxis}
+                />
+                <Tooltip label="重置脸中线">
+                  <ActionIcon
+                    aria-label="重置脸中线"
+                    data-testid="liquify-symmetry-axis-reset"
+                    onClick={onSymmetryAxisReset}
+                    size="sm"
+                    variant="subtle"
+                  >
+                    <IconRefresh size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            </Stack>
+          ) : null}
         </Stack>
       ) : null}
 

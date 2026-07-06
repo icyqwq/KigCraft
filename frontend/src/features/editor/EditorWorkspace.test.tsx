@@ -999,6 +999,53 @@ describe("EditorWorkspace", () => {
     expect(screen.queryAllByTestId(/liquify-stroke-/)).toHaveLength(0);
   });
 
+  it("mirrors warp brush drags with symmetric liquify enabled by default", async () => {
+    renderEditor();
+    await waitFor(() => expect(pixiMocks.setImageUrl).toHaveBeenCalledWith("/candidate.webp"));
+
+    fireEvent.click(screen.getByTestId("editor-tool-liquify"));
+    expect(screen.getByTestId("liquify-symmetry-axis")).toHaveStyle({ left: "50%" });
+    const stage = screen.getByTestId("editor-stage");
+    mockStageRect(stage);
+    mockStageRect(screen.getByTestId("editor-image-viewport"));
+
+    fireEvent.pointerDown(stage, { button: 0, clientX: 256, clientY: 432, pointerId: 1, pointerType: "mouse" });
+    fireEvent.pointerMove(stage, { button: 0, clientX: 384, clientY: 360, pointerId: 1, pointerType: "mouse" });
+    fireEvent.pointerUp(stage, { button: 0, pointerId: 1, pointerType: "mouse" });
+
+    await waitFor(() =>
+      expect(pixiMocks.applyRecipe).toHaveBeenCalledWith(expect.objectContaining({
+        liquify: [
+          expect.objectContaining({ deltaX: 0.1, deltaY: -0.1, mode: "warp", x: 0.25 }),
+          expect.objectContaining({ deltaX: -0.1, deltaY: -0.1, mode: "warp", x: 0.75 }),
+        ],
+      })),
+    );
+  });
+
+  it("uses the manually adjusted symmetry axis for mirrored liquify strokes", async () => {
+    renderEditor();
+    await waitFor(() => expect(pixiMocks.setImageUrl).toHaveBeenCalledWith("/candidate.webp"));
+
+    fireEvent.click(screen.getByTestId("editor-tool-liquify"));
+    moveSlider("liquify-symmetry-axis-slider", "ArrowRight", 50);
+    const stage = screen.getByTestId("editor-stage");
+    mockStageRect(stage);
+    mockStageRect(screen.getByTestId("editor-image-viewport"));
+
+    fireEvent.pointerDown(stage, { button: 0, clientX: 256, clientY: 432, pointerId: 1, pointerType: "mouse" });
+    fireEvent.pointerMove(stage, { button: 0, clientX: 384, clientY: 360, pointerId: 1, pointerType: "mouse" });
+    fireEvent.pointerUp(stage, { button: 0, pointerId: 1, pointerType: "mouse" });
+
+    await waitFor(() =>
+      expect(pixiMocks.applyRecipe).toHaveBeenCalledWith(expect.objectContaining({
+        liquify: expect.arrayContaining([
+          expect.objectContaining({ deltaX: -0.1, mode: "warp", x: 0.85 }),
+        ]),
+      })),
+    );
+  });
+
   it("places and updates one local scale cursor from the liquify controls", async () => {
     renderEditor();
     await waitFor(() => expect(pixiMocks.setImageUrl).toHaveBeenCalledWith("/candidate.webp"));
