@@ -3,7 +3,7 @@
 [中文](README.zh-CN.md) | English
 
 <p align="center">
-  <img src="frontend/public/logo.png" alt="KigCraft logo" width="160" />
+  <img src="docs/logo.png" alt="KigCraft logo" width="160" />
 </p>
 
 KigCraft is a web tool for making Kigurumi head-shell preview images from character references. The workflow follows the way a maker usually works: upload references, confirm the important head details, generate a front view, edit it, and then produce a four-view sheet.
