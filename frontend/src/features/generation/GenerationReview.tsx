@@ -1,9 +1,10 @@
 import { Badge, Box, Button, CircularProgress, Group, Paper, Stack, Text, Title } from "../../ui/mui";
-import { IconPhoto, IconRefresh } from "@tabler/icons-react";
+import { IconArrowLeft, IconPhoto, IconRefresh, IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GenerationJob, JobEvent } from "../../api/client";
-import { formatGenerationMessage, formatGenerationStatusLabel, shouldShowGenerationEvent } from "./generationDisplay";
+import { shouldShowGenerationEvent } from "./generationDisplay";
+import { useGenerationDisplay } from "./useGenerationDisplay";
 import {
   appendGenerationDurationSample,
   estimateGenerationDurationMs,
@@ -19,9 +20,15 @@ import {
 export type GenerationReviewProps = {
   job: GenerationJob | null;
   events: JobEvent[];
+  queueParallelism?: number | null;
   selectedCandidateIndex: number | null;
+  isCancelling?: boolean;
+  isRetrying?: boolean;
+  onBack?: () => void;
   onSelectCandidate: (index: number) => void;
+  onCancel?: () => void | Promise<void>;
   onRefresh: () => void;
+  onRetry?: () => void | Promise<void>;
 };
 
 type TimelineItem = {
@@ -30,8 +37,19 @@ type TimelineItem = {
   createdAt: string;
 };
 
-export function GenerationReview({ job, events, onRefresh }: GenerationReviewProps) {
+export function GenerationReview({
+  job,
+  events,
+  queueParallelism,
+  isCancelling = false,
+  isRetrying = false,
+  onBack,
+  onCancel,
+  onRefresh,
+  onRetry,
+}: GenerationReviewProps) {
   const { i18n, t } = useTranslation();
+  const { formatGenerationMessage, formatGenerationStatusLabel } = useGenerationDisplay();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [durationHistory, setDurationHistory] = useState(readGenerationDurationHistory);
   const localStartMsByJobIdRef = useRef(new Map<string, number>());
@@ -49,7 +67,10 @@ export function GenerationReview({ job, events, onRefresh }: GenerationReviewPro
   const jobStartMs = job ? getGenerationStartTimeMs(events, fallbackStartMs) : nowMs;
   const jobFinishMs = job ? (hasActiveGeneration ? nowMs : getGenerationFinishTimeMs(events, nowMs)) : nowMs;
   const elapsedMs = job ? Math.max(0, jobFinishMs - jobStartMs) : 0;
-  const queueWaitMs = job?.status === "queued" ? estimateGenerationQueueWaitMs(job.queue_position, estimatedDurationMs) : 0;
+  const queueWaitMs =
+    job?.status === "queued"
+      ? estimateGenerationQueueWaitMs(job.queue_position, estimatedDurationMs, queueParallelism ?? 1)
+      : 0;
   const etaMs =
     job && hasActiveGeneration && estimatedDurationMs !== null
       ? Math.max(0, estimatedDurationMs + queueWaitMs - elapsedMs)
@@ -115,8 +136,10 @@ export function GenerationReview({ job, events, onRefresh }: GenerationReviewPro
   const statusLabel = formatGenerationStatusLabel(job.status);
   const phaseLabel = formatGenerationMessage(job.phase_label || job.status) || statusLabel;
   const currentDetailText = currentTimelineItem
-    ? formatTimelineDetail(currentTimelineItem) || t("generation.waitingForProgress")
+    ? formatTimelineDetail(currentTimelineItem, formatGenerationMessage) || t("generation.waitingForProgress")
     : t("generation.waitingForProgress");
+  const canCancel = hasActiveGeneration && Boolean(onCancel);
+  const canRecover = ["failed", "cancelled"].includes(job.status) && Boolean(onBack && onRetry);
 
   return (
     <Paper
@@ -141,9 +164,41 @@ export function GenerationReview({ job, events, onRefresh }: GenerationReviewPro
               {t("generation.jobLabel", { id: job.id.slice(0, 8) })}
             </Text>
           </Box>
-          <Button color="cyan" leftSection={<IconRefresh size={16} />} onClick={onRefresh} size="xs" variant="light">
-            {t("common.refresh")}
-          </Button>
+          <Group gap={0.75} justify="flex-end" wrap="wrap">
+            {canRecover ? (
+              <>
+                <Button
+                  color="cyan"
+                  leftSection={<IconRefresh size={16} />}
+                  loading={isRetrying}
+                  onClick={() => void onRetry?.()}
+                  size="xs"
+                  variant="filled"
+                >
+                  {t("generation.retry")}
+                </Button>
+                <Button leftSection={<IconArrowLeft size={16} />} onClick={onBack} size="xs" variant="light">
+                  {t("generation.back")}
+                </Button>
+              </>
+            ) : null}
+            {canCancel ? (
+              <Button
+                color="red"
+                data-testid="generation-cancel"
+                leftSection={<IconX size={16} />}
+                loading={isCancelling}
+                onClick={() => void onCancel?.()}
+                size="xs"
+                variant="light"
+              >
+                {t("generation.cancel")}
+              </Button>
+            ) : null}
+            <Button color="cyan" leftSection={<IconRefresh size={16} />} onClick={onRefresh} size="xs" variant="light">
+              {t("common.refresh")}
+            </Button>
+          </Group>
         </Group>
 
         <Stack gap={0.75}>
@@ -198,8 +253,8 @@ export function GenerationReview({ job, events, onRefresh }: GenerationReviewPro
   );
 }
 
-function formatTimelineDetail(item: TimelineItem) {
-  return `${formatGenerationMessage(item.title)}${item.createdAt ? ` · ${formatEventTime(item.createdAt)}` : ""}`;
+function formatTimelineDetail(item: TimelineItem, formatMessage: (value: unknown) => string) {
+  return `${formatMessage(item.title)}${item.createdAt ? ` · ${formatEventTime(item.createdAt)}` : ""}`;
 }
 
 function getTimelineItems(job: GenerationJob, events: JobEvent[]): TimelineItem[] {

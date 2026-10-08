@@ -1,0 +1,88 @@
+/* Image editor as a dialog: one header, a tool rail, the canvas and the parameter panel, all on thin ink lines. */
+.v2-workspace-editor .MuiDialog-paper { width:min(1400px,96vw); max-width:none; height:min(920px,94dvh); margin:0; display:flex; flex-direction:column; overflow:hidden;
+  border:2px solid var(--kb-line); box-shadow:var(--kb-hard-shadow); background:var(--kb-old-paper); }
+.v2-workspace-editor.is-closing .MuiDialog-paper,.v2-workspace-editor .MuiDialog-paper.is-closing { transform:translateY(8px) scale(.985); opacity:0; transition:transform var(--kb-motion-base) var(--kb-ease-in),opacity var(--kb-motion-base) linear; animation:none; }
+.v2-workspace-editor .v2-editor { flex:1; min-height:0; min-width:0; display:flex; flex-direction:column; padding:0; background:transparent; }
+
+/* Header */
+.v2-workspace-header.is-dialog { flex:none; flex-wrap:nowrap; gap:10px; padding:12px 12px 12px 20px; border-bottom:2px solid var(--kb-line); background:var(--kb-panel); }
+.v2-workspace-header.is-dialog h2 { font-size:18px; }
+.v2-workspace-header.is-dialog .v2-workspace-close { min-height:36px; width:36px; padding:0; }
+.v2-workspace-editor .v2-editor > p,.v2-workspace-editor .v2-editor > section.v2-local-result { flex:none; margin:0; padding:8px 20px; font-size:13px; border-bottom:1px solid var(--kb-line-soft); }
+.v2-workspace-editor .v2-editor > div[inert],.v2-workspace-editor .v2-editor > div:has(> .editor-workspace) { flex:1; min-height:0; display:flex; flex-direction:column; }
+.v2-workspace-editor .v2-editor [data-testid="editor-cloud-status"],.v2-workspace-editor .v2-editor [data-testid="editor-draft-status"] { flex:none; margin:0; padding:6px 20px; font-size:12.5px; color:var(--kb-concrete-grey); }
+.v2-workspace-editor [data-testid="editor-draft-status"]:empty { display:none; }
+
+/* Workspace body */
+.v2-workspace-editor .editor-workspace { flex:1; min-height:0; display:flex; flex-direction:column; padding:0 !important; border:0 !important; box-shadow:none !important; background:transparent !important; outline:none; }
+.v2-workspace-editor .editor-workspace-stack { flex:1; min-height:0; gap:0 !important; display:flex; flex-direction:column; }
+.v2-workspace-editor .editor-workspace-stack > [role="alert"] { margin:12px 20px 0; }
+
+/* The three document actions sit at the left of the canvas toolbar line; "save" duplicates the header button */
+.v2-workspace-editor .editor-primary-actions .editor-horizontal-scroll { min-height:0 !important; padding:0 !important; justify-content:flex-start; overflow:visible !important; }
+.v2-workspace-editor .editor-primary-actions .editor-horizontal-scroll > div { flex:0 1 auto !important; margin-left:0 !important; }
+.v2-workspace-editor [data-testid="editor-save"] { display:none; }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] .editor-primary-actions button { min-height:32px; min-width:0; padding:4px 10px; font-size:13px; border-color:transparent; background:transparent; box-shadow:none; color:var(--kb-ink); white-space:nowrap; }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] .editor-primary-actions button:not(:disabled):hover { background:var(--kb-panel-hover); border-color:var(--kb-line); }
+
+/* Three columns filling the rest of the dialog */
+.v2-workspace-editor .editor-shell { flex:1; min-height:0 !important; overflow:hidden !important; gap:0 !important; grid-template-columns:84px minmax(0,1fr) 320px !important; }
+.v2-workspace-editor .editor-rail,.v2-workspace-editor .editor-controls { border:0 !important; box-shadow:none !important; background:var(--kb-panel) !important; border-radius:0; overflow-y:auto; min-height:0; box-sizing:border-box; }
+.v2-workspace-editor .editor-rail { border-right:1px solid var(--kb-line) !important; padding:10px 8px !important; }
+.v2-workspace-editor .editor-controls { width:auto !important; min-width:0 !important; max-width:none !important; border-left:1px solid var(--kb-line) !important; padding:16px !important; }
+
+/* Tool rail: icon above a short label */
+.v2-workspace-editor .editor-rail > div > p { display:none; }
+.v2-workspace-editor .editor-tool-button-vertical { flex-direction:column; gap:4px; min-height:62px !important; padding:8px 2px !important; font-size:12px; line-height:1.15; border:1.5px solid transparent !important; background:transparent !important; box-shadow:none !important; color:var(--kb-ink) !important; }
+.v2-workspace-editor .editor-tool-button-vertical > span { margin:0 !important; }
+.v2-workspace-editor .editor-tool-button-vertical:hover { background:var(--kb-panel-hover) !important; }
+.v2-workspace-editor .editor-tool-button-vertical[aria-pressed="true"] { background:var(--kb-coral) !important; border-color:var(--kb-line) !important; color:var(--kb-off-white) !important; }
+
+/* Canvas column: toolbar line on top, stage fills the rest */
+.v2-workspace-editor .editor-shell > div:nth-child(2) { gap:0 !important; padding:0; min-height:0; }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] { flex:none; border:0 !important; border-bottom:1px solid var(--kb-line) !important; box-shadow:none !important; background:var(--kb-panel) !important; padding:4px 12px !important; gap:8px; }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] .editor-viewport-toolbar { padding:0 !important; min-height:40px; }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] button { min-height:32px; min-width:32px; padding:4px; border-color:transparent; background:transparent; box-shadow:none; }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] button:not(:disabled):hover { background:var(--kb-panel-hover); border-color:var(--kb-line); }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] button[aria-pressed="true"] { background:var(--kb-panel-hover); border-color:var(--kb-line); }
+.v2-workspace-editor [data-testid="editor-stage"] { border:0 !important; box-shadow:none !important; }
+@media (min-width:768px) { .v2-workspace-editor [data-testid="editor-stage"] { flex:1 1 0 !important; min-height:0 !important; height:auto !important; } }
+
+/* Compare button: small, inside the canvas corner, tip to its left so the picture stays clear */
+.v2-workspace-editor .editor-compare-anchor button { width:40px; height:40px; min-height:40px; padding:0; border:1.5px solid var(--kb-line) !important; box-shadow:2px 2px 0 var(--kb-shadow) !important; }
+.v2-workspace-editor .landmark-correction-hint { font-size:13px; }
+
+/* Phones: the dialog is the whole screen and the editor scrolls as one column */
+@media (max-width:767px) {
+  .v2-workspace-editor .MuiDialog-paper { width:100vw; height:100dvh; border:0; box-shadow:none; }
+  .v2-workspace-editor .editor-shell { overflow:auto !important; display:block !important; }
+  .v2-workspace-editor .editor-controls { max-height:none !important; overflow:visible; }
+  .v2-workspace-header.is-dialog { gap:6px; padding-left:14px; }
+  .v2-workspace-header.is-dialog button:not(.v2-workspace-close) { white-space:nowrap; padding-inline:10px; }
+  .v2-workspace-editor .editor-controls { border-left:0 !important; border-top:1px solid var(--kb-line) !important; }
+}
+@media (prefers-reduced-motion:reduce) { .v2-workspace-editor .MuiDialog-paper { animation:none; } .v2-workspace-editor.is-closing .MuiDialog-paper { transition:none; transform:none; } }
+
+/* Parameter panel: flat controls on thin lines */
+.v2-workspace-editor .editor-controls button { box-shadow:none !important; border-width:1.5px; }
+.v2-workspace-editor .editor-controls button:not(:disabled):active { transform:none; }
+.v2-workspace-editor .editor-controls h3 { font-size:17px; margin:0; }
+.v2-workspace-editor .landmark-correction-hint { box-shadow:none !important; border:1.5px solid var(--kb-line) !important; padding:4px 12px !important; background:var(--kb-panel) !important; }
+.v2-workspace-editor .landmark-loading-card { box-shadow:none !important; border:1.5px solid var(--kb-line) !important; }
+.v2-workspace-editor .v2-editor [data-testid="editor-cloud-status"] button { min-height:28px; padding:2px 10px; font-size:12.5px; }
+
+
+/* Pressed buttons shift by a pixel; never let that open a scrollbar in the toolbar line */
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"],.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] > div,
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] .editor-viewport-toolbar,.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] .editor-horizontal-scroll,
+.v2-workspace-editor [data-testid="editor-canvas-toolbar"] { overflow:visible !important; scrollbar-width:none; }
+.v2-workspace-editor [data-testid="editor-viewport-toolbar-card"] button:not(:disabled):active { transform:none !important; }
+
+/* Local image: saving to the device is the header button; no second download control */
+.v2-quick-local [data-testid="editor-download"] { display:none; }
+
+/* A local generation is running: say so, and keep the rest of the screen quiet. */
+.v2-local-busy, .v2-local-adopted { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; padding:8px 12px; border:2px solid var(--kb-line); background:var(--kb-panel-soft, #fff4dd); font-size:14px; }
+.v2-local-busy { font-weight:700; }
+.v2-local-busy span:not(.kc-spinner), .v2-local-adopted span { flex:1 1 220px; min-width:0; }
+.v2-local-busy button, .v2-local-adopted button { padding:5px 12px; font-size:13px; }

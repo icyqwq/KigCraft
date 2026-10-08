@@ -1,0 +1,43 @@
+/* Local generation panel: three short steps, one clear action. */
+.lg-panel { display:flex; flex-direction:column; gap:14px; }
+.lg-busy { display:flex; align-items:center; gap:10px; margin:0; padding:10px 12px; background:var(--kb-panel-soft, #fff4dd); border:2px solid var(--kb-line, #191f23); font-weight:700; font-size:14px; }
+.lg-spin { width:16px; height:16px; }
+.lg-step { display:flex; flex-direction:column; gap:8px; padding:0 0 14px; border-bottom:1px dashed rgba(25,31,35,.28); }
+.lg-step:last-of-type { border-bottom:0; }
+.lg-step > header { display:flex; align-items:center; gap:8px; }
+.lg-step h3 { margin:0; font-size:15px; font-weight:800; }
+.lg-no { display:inline-grid; place-items:center; width:22px; height:22px; border:2px solid var(--kb-line, #191f23); background:#fff; font-size:12px; font-weight:800; line-height:1; }
+.lg-tools { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.lg-seg { display:inline-flex; border:2px solid var(--kb-line, #191f23); background:#fff; }
+.lg-seg-wide { display:flex; }
+.lg-seg-wide button { flex:1; }
+.lg-seg button { padding:7px 14px; border:0; border-right:2px solid var(--kb-line, #191f23); background:transparent; color:inherit; font:inherit; font-size:14px; font-weight:700; cursor:pointer; transition:background .12s ease, color .12s ease; }
+.lg-seg button:last-child { border-right:0; }
+.lg-seg button:hover:not(:disabled):not([aria-pressed="true"]):not([aria-checked="true"]) { background:rgba(25,31,35,.07); }
+.lg-seg button[aria-pressed="true"], .lg-seg button[aria-checked="true"] { background:var(--kb-coral, #c9552f); color:#fff; }
+.lg-seg button:disabled, .lg-ghost:disabled { opacity:.45; cursor:not-allowed; }
+.lg-ghost { padding:6px 10px; border:0; background:transparent; color:inherit; font:inherit; font-size:13px; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.lg-size { display:flex; align-items:center; gap:12px; font-size:13px; color:var(--kb-concrete-grey, #6d675d); }
+.lg-size output { min-width:28px; text-align:right; font-variant-numeric:tabular-nums; color:var(--kb-ink, #191f23); font-weight:700; }
+.lg-hint { margin:0; font-size:13px; line-height:1.55; color:var(--kb-concrete-grey, #6d675d); }
+.lg-hint[data-state="todo"] { color:var(--kb-coral, #c9552f); }
+.lg-hint[data-state="ok"]::before { content:"✓ "; color:#2f7d4f; font-weight:800; }
+.lg-references .reference-attachments { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.lg-references .reference-attachment-list { flex:0 0 100%; margin:0; display:flex; flex-direction:column; gap:8px; }
+.lg-references .reference-attachment { padding:8px; border:2px solid var(--kb-line, #191f23); background:#fff; }
+.lg-references .reference-attachments > button { padding:7px 12px; border:2px dashed var(--kb-line, #191f23); background:transparent; color:inherit; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.lg-references .reference-attachments > button:hover:not(:disabled) { background:rgba(25,31,35,.07); }
+.lg-references .reference-attachments > button:disabled { opacity:.45; cursor:not-allowed; }
+.lg-references details { flex:0 0 100%; border:2px solid var(--kb-line, #191f23); background:#fff; }
+.lg-references details > summary { padding:7px 12px; font-size:13px; font-weight:700; cursor:pointer; list-style:none; }
+.lg-references details > summary::before { content:"▸ "; }
+.lg-references details[open] > summary::before { content:"▾ "; }
+.lg-references .reference-options { display:flex; flex-wrap:wrap; gap:6px; padding:0 10px 10px; }
+.lg-references .reference-count { margin-left:auto; font-size:12px; color:var(--kb-concrete-grey, #6d675d); font-variant-numeric:tabular-nums; }
+.lg-submit-row { display:flex; flex-direction:column; gap:6px; }
+.lg-submit { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px 16px; border:2px solid var(--kb-line, #191f23); background:var(--kb-coral, #c9552f); color:#fff; font:inherit; font-size:15px; font-weight:800; cursor:pointer; box-shadow:4px 4px 0 var(--kb-shadow, #191f23); transition:transform .12s ease, box-shadow .12s ease, background .12s ease; }
+.lg-submit:hover:not(:disabled) { transform:translate(-1px,-1px); box-shadow:5px 5px 0 var(--kb-shadow, #191f23); }
+.lg-submit:active:not(:disabled) { transform:translate(2px,2px); box-shadow:2px 2px 0 var(--kb-shadow, #191f23); }
+.lg-submit:disabled { background:#ddd5c3; color:rgba(25,31,35,.5); box-shadow:none; cursor:not-allowed; }
+.lg-submit-hint { text-align:center; }
+@media (prefers-reduced-motion: reduce) { .lg-submit, .lg-seg button { transition:none; } }

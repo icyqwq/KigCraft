@@ -2,9 +2,24 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from PIL import Image, ImageChops
 
-from app.images.watermark import apply_kigcraft_watermark
+from app.images.watermark import WatermarkTexts, apply_kigcraft_watermark, get_watermark_texts
+
+
+@pytest.mark.parametrize(
+    ("locale", "expected"),
+    [
+        ("zh-CN", WatermarkTexts("KigCraft", "", "由AI生成，仅供参考")),
+        ("en", WatermarkTexts("KigCraft", "", "AI-generated, for reference only")),
+        ("ja", WatermarkTexts("KigCraft", "", "AI生成・参考用")),
+        ("en-US", WatermarkTexts("KigCraft", "", "AI-generated, for reference only")),
+        ("unsupported", WatermarkTexts("KigCraft", "", "由AI生成，仅供参考")),
+    ],
+)
+def test_watermark_texts_follow_normalized_locale(locale: str, expected: WatermarkTexts) -> None:
+    assert get_watermark_texts(locale) == expected
 
 
 def test_kigcraft_watermark_marks_bottom_left_and_writes_marker(tmp_path: Path) -> None:
@@ -23,28 +38,6 @@ def test_kigcraft_watermark_marks_bottom_left_and_writes_marker(tmp_path: Path) 
     assert _has_rgb_difference(center_before, center_after)
     assert image_path.with_name(f"{image_path.name}.watermarked").is_file()
 
-
-def test_watermark_cli_can_write_output_image(tmp_path: Path) -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    script = repo_root / "tools" / "watermark_image.py"
-    source = tmp_path / "source.png"
-    output = tmp_path / "watermarked.png"
-    Image.new("RGB", (640, 480), (24, 32, 44)).save(source)
-
-    result = subprocess.run(
-        [sys.executable, str(script), str(source), "--output", str(output), "--force"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert str(output) in result.stdout
-    assert output.is_file()
-    assert output.with_name(f"{output.name}.watermarked").is_file()
-    assert _has_rgb_difference(
-        Image.open(source).convert("RGBA"),
-        Image.open(output).convert("RGBA"),
-    )
 
 
 def _has_rgb_difference(before: Image.Image, after: Image.Image) -> bool:

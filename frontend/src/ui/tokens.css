@@ -1,0 +1,53 @@
+/* Generated from src/ui/tokens.ts; run npm run tokens:generate. */
+:root {
+  --kb-font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, "Times New Roman", serif;
+  --kb-faded-black: #2e3437;
+  --kb-paper-black: #191f23;
+  --kb-paper-dark: #fff4dd;
+  --kb-old-paper: #f3ead7;
+  --kb-old-paper-2: #e5d6bd;
+  --kb-ink: #191f23;
+  --kb-dirty-yellow: #c9552f;
+  --kb-muted-red: #c9552f;
+  --kb-coral: #c9552f;
+  --kb-teal: #0d756f;
+  --kb-off-white: #fff7ea;
+  --kb-olive-drab: #516a45;
+  --kb-denim-blue: #182635;
+  --kb-concrete-grey: #6d675d;
+  --kb-line: #22282c;
+  --kb-line-strong: #191f23;
+  --kb-shadow: #182635;
+  --kb-accent: #c9552f;
+  --kb-text: #191f23;
+  --kb-muted: rgba(25, 31, 35, 0.42);
+  --kb-panel: #fff4dd;
+  --kb-panel-soft: #fff8e9;
+  --kb-panel-hover: #f2e2c6;
+  --kb-button-hover: #b94728;
+  --kb-danger: #b6372b;
+  --kb-line-soft: rgba(25, 31, 35, 0.18);
+  --kb-scrim: rgba(25, 31, 35, 0.3);
+  --kb-motion-fast: 120ms;
+  --kb-motion-base: 180ms;
+  --kb-motion-slow: 240ms;
+  --kb-motion-emphasis: 320ms;
+  --kb-ease-out: cubic-bezier(.2,.8,.2,1);
+  --kb-ease-in: cubic-bezier(.4,0,1,1);
+  --kb-z-content: 0;
+  --kb-z-sticky: 10;
+  --kb-z-drawer: 1200;
+  --kb-z-modal: 1300;
+  --kb-z-toast: 1400;
+  --kb-weight-regular: 400;
+  --kb-weight-medium: 500;
+  --kb-weight-semibold: 600;
+  --kb-weight-bold: 700;
+  --kb-hard-shadow-md: 4px 4px 0 var(--kb-shadow);
+  --kb-hard-shadow: 8px 8px 0 var(--kb-shadow);
+  --kb-hard-shadow-sm: 5px 5px 0 var(--kb-shadow);
+}
+
+html[data-locale="ja"] {
+  --kb-font-family: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+}

@@ -22,6 +22,7 @@ export type LiquifyControlsProps = {
   onBrushRadiusReset: () => void;
   onRedo: () => void;
   onScaleChange: (value: number) => void;
+  onScaleInteractionEnd?: () => void;
   onScaleReset: () => void;
   onSymmetryAxisChange: (value: number) => void;
   onSymmetryAxisReset: () => void;
@@ -46,6 +47,7 @@ export function LiquifyControls({
   onBrushRadiusReset,
   onRedo,
   onScaleChange,
+  onScaleInteractionEnd,
   onScaleReset,
   onSymmetryAxisChange,
   onSymmetryAxisReset,
@@ -206,6 +208,7 @@ export function LiquifyControls({
               max={10}
               min={-10}
               onChange={onScaleChange}
+              onChangeCommitted={onScaleInteractionEnd}
               size="sm"
               step={0.1}
               style={{ flex: 1 }}

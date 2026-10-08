@@ -1,0 +1,21 @@
+export default {
+  "reviewNoCharge": "未扣生成额度。",
+  "reviewRecover": "查看原输入并重试",
+  "annotations": "本轮标注",
+  "annotation": "标注 {{number}}",
+  "imageText": "图中文字：{{text}}",
+  "interrupted": "回复已中断",
+  "newContent": "查看新内容",
+  "answer": "补充回答",
+  "loadingQuestion": "正在读取问题…",
+  "retry": "重试",
+  "answered": "此问题已提交回答。本机回答草稿会保留。",
+  "expired": "此问题已失效。本机回答草稿会保留。",
+  "answerLocalUnavailable": "局部编辑暂不可用，回答可保存在本机。",
+  "edit": "修改后重发",
+  "loadingMessage": "正在读取原消息…",
+  "signInContinue": "登录后继续",
+  "lockMode": "保留原选区与编辑方式：锁定区域外像素",
+  "preserveMode": "保留原选区与编辑方式：尽量保持区域外",
+  "editLocalUnavailable": "局部编辑暂不可用，修改可保存在本机。"
+} as const;

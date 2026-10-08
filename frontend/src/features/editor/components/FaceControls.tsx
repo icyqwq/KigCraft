@@ -13,20 +13,29 @@ type FaceControlConfig = {
   min?: number;
 };
 
-const faceControls: FaceControlConfig[] = [
-  { actualMax: 0.2, actualMin: -0.2, key: "faceWidth", label: "脸宽" },
-  { actualMax: 0.3, actualMin: -0.3, key: "faceLength", label: "脸长" },
-  { actualMax: 0.2, actualMin: -0.2, key: "midFaceLength", label: "中庭长度" },
-  { actualMax: 0.2, actualMin: 0, key: "smallFace", label: "小脸", max: 1, min: 0 },
-  { actualMax: 0.2, actualMin: -0.2, key: "cheekbone", label: "颧骨" },
-  { actualMax: 0.2, actualMin: -0.2, key: "chinLength", label: "下巴长度" },
-  { actualMax: 0.2, actualMin: -0.2, key: "chinPoint", label: "下巴尖度" },
-  { actualMax: 0.2, actualMin: 0, key: "vLine", label: "V脸", max: 1, min: 0 },
-  { actualMax: 0.2, actualMin: -0.2, key: "jawAngle", label: "下颌角" },
-];
+// Face shape keeps every feature in place; proportions deliberately move features apart or together.
+const controlGroups: Record<FaceControlGroup, FaceControlConfig[]> = {
+  shape: [
+    { actualMax: 0.2, actualMin: -0.2, key: "faceWidth", label: "脸宽" },
+    { actualMax: 0.2, actualMin: -0.2, key: "smallFace", label: "小脸" },
+    { actualMax: 0.2, actualMin: -0.2, key: "temple", label: "太阳穴" },
+    { actualMax: 0.2, actualMin: -0.2, key: "cheekbone", label: "颧骨" },
+    { actualMax: 0.2, actualMin: -0.2, key: "chinLength", label: "下巴长短" },
+    { actualMax: 0.2, actualMin: -0.2, key: "chinPoint", label: "尖下巴" },
+    { actualMax: 0.2, actualMin: 0, key: "vLine", label: "V脸", max: 1, min: 0 },
+    { actualMax: 0.2, actualMin: -0.2, key: "jawAngle", label: "下颌角" },
+  ],
+  proportion: [
+    { actualMax: 0.3, actualMin: -0.3, key: "faceLength", label: "脸长" },
+    { actualMax: 0.2, actualMin: -0.2, key: "midFaceLength", label: "中庭" },
+  ],
+};
+
+export type FaceControlGroup = "shape" | "proportion";
 
 export type FaceControlsProps = {
   compact?: boolean;
+  group?: FaceControlGroup;
   debugValues?: boolean;
   values: EditRecipe["face"];
   onChange: (key: FaceControlKey, value: number) => void;
@@ -38,19 +47,21 @@ export type FaceControlsProps = {
 export function FaceControls({
   compact = false,
   debugValues = false,
+  group = "shape",
   values,
   onChange,
   onReset,
   onSliderInteractionEnd,
   onSliderInteractionStart,
 }: FaceControlsProps) {
+  const faceControls = controlGroups[group];
   const [activeControlKey, setActiveControlKey] = useState<FaceControlKey>(faceControls[0].key);
   const [expandedRangeEnabled, setExpandedRangeEnabled] = useState(false);
   const activeControl = faceControls.find((control) => control.key === activeControlKey) ?? faceControls[0];
 
   if (compact) {
     return (
-      <Stack gap="sm" data-testid="face-controls-compact">
+      <Stack gap="sm" data-testid={`${group === "shape" ? "face" : group}-controls-compact`}>
         <Box className="editor-horizontal-scroll" style={{ paddingBottom: 2 }}>
           <Group gap={0.75} wrap="nowrap">
             {faceControls.map((control) => (

@@ -1,143 +1,126 @@
-# KigCraft
-
-[中文](README.zh-CN.md) | English
-
 <p align="center">
-  <img src="frontend/public/logo.png" alt="KigCraft logo" width="160" />
+  <img src="frontend/public/brand/kigcraft-wordmark.png" alt="KigCraft" width="420" />
 </p>
 
-KigCraft is a web tool for making Kigurumi head-shell preview images from character references. The workflow follows the way a maker usually works: upload references, confirm the important head details, generate a front view, edit it, and then produce a four-view sheet.
+<p align="center">
+  <a href="README.zh-CN.md">中文</a> | English
+</p>
 
-Developer: SeaRabbit / 海兔  
-User group: QQ 934715528
+<p align="center">
+  <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue"></a>
+  <img alt="Branch" src="https://img.shields.io/badge/branch-v2-orange">
+</p>
 
-![KigCraft editor workspace](docs/images/editor-workspace.png)
+KigCraft is a web tool for designing **Kigurumi (animegao) head shells**. Describe the character, drop in your
+references, and it works the way a maker does: confirm the details that matter, draw a clean flat reference, render the
+finished head shell, then lay out a four-view sheet. Everything can be refined afterwards in a built-in image editor.
 
-## Features
+> This is the **V2** branch: a conversation-driven design workspace with versioned images and an integrated editor.
+> Image generation runs through the [Codex CLI](https://github.com/openai/codex) with your own ChatGPT login.
 
-- Upload character references and add a short note about what should stay unchanged.
-- Review an editable detail list before generation, including hair, eyes, expression, ears, and head accessories.
-- Generate front-view and four-view previews through a pluggable generation provider.
-- Edit generated images with annotation, landmark correction, face shape, eyes, mouth, liquify, and local regeneration tools.
-- Switch between Chinese, English, and Japanese UI modes. The app can also choose the default language from the browser.
-- Run the local stack with Docker Compose, FastAPI, React, Postgres, Redis, and MinIO.
+![KigCraft workspace](docs/images/home.jpg)
 
-## License
+## What it does
 
-KigCraft is released under GPL-3.0-or-later. See [LICENSE](LICENSE).
+**Design conversation**
+- Start from references plus a short note, or ask for a head shell directly. A *flat reference first* mode (recommended)
+  draws a clean, front-facing reference before the 3D head-shell render.
+- Before generating, the input is reviewed. If something important is missing or ambiguous (hair, eyes, ears,
+  accessories, conflicting references) you get a short question instead of a wasted generation.
+- Every image is a numbered **version**. Edit any earlier message and resend to branch from that point; designs can be
+  deleted and restored from the trash.
+- Generate the **four-view sheet** from any approved front view, optionally with extra reference pictures per direction.
 
-## Requirements
+**Image editor**
+- Face landmark detection that runs in the browser (MediaPipe plus an anime-face model), with manual correction.
+- Face shape, eyes, mouth and brows with bounded, symmetric adjustments; free-form liquify; annotation layers.
+- **Local regeneration**: paint a mask, describe the change, and the result replaces the current image in place. It
+  stays undoable and does not create a new version.
+- Closing the editor keeps its state; reopen the image to continue. Export a project bundle at any time.
 
-- Docker Desktop or Docker Engine with Compose
-- Node.js 22 or newer for frontend-only development
-- Python 3.12 or newer for backend-only development
-- Codex CLI authentication when `GENERATION_PROVIDER=codex`
+**Service**
+- Email-code sign-up and password login, terms acceptance, per-account daily generation quota, rate limits.
+- Delivered images carry a tiled domain and "AI generated" watermark; your own revisions also show
+  `v{number} · date` in the top-left corner.
+- Admin pages: usage and Codex quota history, task audit, recovery of interrupted work, image anomaly alerts.
+- Chinese, English and Japanese UI, picked from the browser.
 
-## Quick start
+## Architecture
 
-```powershell
-Copy-Item .env.example .env
-# Edit .env and replace every change-me-* value before exposing the service.
-docker compose up --build
-```
-
-Before using Codex generation, create `ref/` at the repo root and add your own product reference images. See [Product reference images](#product-reference-images).
-
-Local URLs:
-
-- Frontend: <http://localhost:15173>
-- API health: <http://localhost:18000/health>
-- MinIO console: <http://localhost:19001>
-
-## Generation providers
-
-`GENERATION_PROVIDER=codex` runs generation through the Codex CLI inside the backend container. Mount an authenticated Codex config directory at runtime:
-
-```powershell
-Copy-Item -Recurse "$env:USERPROFILE\.codex" ".\runtime\codex-home"
-docker compose up --build
-```
-
-For a Linux server, copy an authenticated Codex config directory to the host and set:
-
-```dotenv
-GENERATION_PROVIDER=codex
-CODEX_PATH=codex
-CODEX_CONFIG_DIR=/home/deploy/.codex
-CODEX_PRODUCT_REFERENCE_PATH=ref/product-reference.png
-```
-
-### Product reference images
-
-This repository does not ship product reference images. You need to create `ref/` yourself and place your own files there before running Codex generation.
-
-| File | Purpose |
+| Part | Stack |
 | --- | --- |
-| `ref/product-reference.png` | Finished-product style reference for front-view generation |
-| `ref/turnaround-reference.png` | Finished-product style reference for four-view generation |
+| `frontend/` | React, Vite, MUI, Konva canvas editor, i18next |
+| `backend/` | FastAPI, SQLAlchemy 2 (async), Alembic, Pillow |
+| Worker | `python -m app.operations.worker`: runs the Codex turns for queued operations |
+| Storage | PostgreSQL (data), Redis, a filesystem volume for images (S3/MinIO optional) |
 
-Use PNG files with the exact filenames above., such as studio background, shell material, wig texture, framing, and lighting. They are not the character reference images uploaded through the UI.
+## Quick start (Docker)
 
-`ref/` is listed in `.gitignore`, so private reference assets stay on your machine and are not committed to Git.
+Requirements: Docker with Compose, and a ChatGPT account that can use Codex image generation.
 
-```powershell
-New-Item -ItemType Directory -Force ref
-# Copy your own reference images into ref/
+```bash
+git clone -b v2 https://github.com/icyqwq/KigCraft.git
+cd KigCraft
+cp .env.example .env        # then set POSTGRES_PASSWORD and JWT_SECRET to long random values
 ```
 
-Override the front-view reference path in `.env` if needed:
+Sign in to Codex once on any machine (`npm i -g @openai/codex && codex login`) and copy the resulting directory
+(it contains `auth.json`) to `runtime/codex-home/`, or point `CODEX_CONFIG_DIR` in `.env` at it. The worker uses this
+one login for every account. Never commit it.
 
-```dotenv
-CODEX_PRODUCT_REFERENCE_PATH=ref/product-reference.png
+```bash
+docker compose up --build -d
 ```
 
-`GENERATION_PROVIDER=codex_bridge` runs the Codex CLI outside the backend container. Start the bridge with:
+Open <http://localhost:15173>. With `EMAIL_PROVIDER=console` the sign-up code is printed in the API log:
 
-```powershell
-.\tools\start_codex_bridge.ps1
+```bash
+docker compose logs -f api | grep verification_code
 ```
 
-Use a custom `CODEX_BRIDGE_TOKEN` outside local development.
+After registering, make yourself an administrator:
 
-Fixture and mock generation are for tests and local smoke runs only. Do not enable them in production.
-
-## Deployment
-
-Create a production `.env` on the server before deploying. At minimum, set:
-
-- `APP_ENV=production`
-- Strong values for `POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `JWT_SECRET`, and `ADMIN_AUDIT_PASSWORD`
-- Production `CORS_ALLOWED_ORIGINS`
-- `GENERATION_PROVIDER=codex` or `codex_bridge`
-- `ALLOW_FIXTURE_GENERATION=false`
-
-Deploy the current Git commit over SSH:
-
-```powershell
-.\scripts\deploy-ssh.ps1 `
-  -KeyPath "$env:USERPROFILE\.ssh\id_ed25519" `
-  -SshTarget "deploy@example.com" `
-  -RemoteAppDir "/opt/kigcraft"
+```bash
+docker compose exec api python -m app.auth.admin_cli promote --email you@example.com
 ```
 
-The script uploads a `git archive`, extracts it on the server, checks that production is not using fixture generation, and rebuilds `api`, `worker`, and `frontend` with Docker Compose.
+The `migrate` service creates and upgrades the database schema on every start. Data lives in the `postgres-data`,
+`assets` and `runtime` volumes.
+
+### Style references (optional)
+
+Generation can add two product-style photographs (a finished head shell and a four-view layout) as appearance guidance.
+They are **not** shipped with this repository. To use your own, place `finished-head-shell.jpg` and
+`four-view-layout.jpg` in `style-references/` next to `docker-compose.yml`. Without them everything works the same,
+just without that guidance.
+
+### Going public
+
+Put a TLS reverse proxy in front of `frontend` (port 15173), then set `SESSION_COOKIE_SECURE=true`,
+`APP_ENV=production`, real email delivery (`EMAIL_PROVIDER=tencent_ses` plus its keys) and, for open registration,
+`CAPTCHA_ENABLED=true` with your own Cloudflare Turnstile keys. Keep `API_BIND_HOST` on loopback. Review the legal
+texts in `frontend/src/i18n/resources/` and replace the operator contact with your own.
 
 ## Development
 
-Frontend:
+```bash
+# backend (Python 3.12+); needs PostgreSQL and Redis, pointed to by DATABASE_URL / V2_DATABASE_URL / REDIS_URL
+cd backend && pip install -e ".[dev]"
+python -m app.db.migrate upgrade
+uvicorn app.main:app --reload --port 18000
+python -m app.operations.worker
 
-```powershell
-cd frontend
-npm install
-npm run dev
-npm run build
+# frontend (Node 22+)
+cd frontend && npm ci && npm run dev      # proxies /api to http://127.0.0.1:18000
+npm test                                  # design-token check, boundary check, vitest
 ```
 
-Backend:
+Backend tests: `cd backend && pytest` (set `KIG_TEST_DATABASE_URL` to a throwaway PostgreSQL database).
 
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\python -m pip install -e .[dev]
-.\.venv\Scripts\python -m pytest
-```
+## Credits and license
+
+Developer: SeaRabbit / 海兔. User group: QQ 934715528.
+
+KigCraft is released under **GPL-3.0-or-later**; see [LICENSE](LICENSE). Third-party notices for bundled libraries are
+in `frontend/public/notices/`. The Codex CLI is a separate OpenAI product with its own terms; you are responsible for
+how you use your account with it.

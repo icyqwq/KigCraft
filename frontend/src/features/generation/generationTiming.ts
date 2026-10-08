@@ -93,9 +93,14 @@ function getBenchmarkDurationMs(context: { expectedOutputCount?: number; generat
   return ONE_IMAGE_BENCHMARK_DURATION_MS;
 }
 
-export function estimateGenerationQueueWaitMs(queuePosition: number | null | undefined, estimatedDurationMs: number | null) {
+export function estimateGenerationQueueWaitMs(
+  queuePosition: number | null | undefined,
+  estimatedDurationMs: number | null,
+  parallelism = 1,
+) {
   if (!queuePosition || queuePosition <= 1 || estimatedDurationMs === null) return 0;
-  return (queuePosition - 1) * estimatedDurationMs;
+  const safeParallelism = Math.max(1, Math.floor(parallelism));
+  return Math.floor((queuePosition - 1) / safeParallelism) * estimatedDurationMs;
 }
 
 export function formatEtaDuration(ms: number, language = "zh-CN") {

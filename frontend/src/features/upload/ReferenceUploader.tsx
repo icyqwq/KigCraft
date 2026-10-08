@@ -56,6 +56,7 @@ export type ReferenceUploaderProps = {
   headerAction?: ReactNode;
   referenceSlots?: ReferenceSlot[];
   onReferenceSlotsChange?: (slots: ReferenceSlot[]) => void;
+  onRequireAuth?: (action: () => void | Promise<void>) => void;
   slots?: ReferenceSlots;
   onSlotsChange?: (slots: ReferenceSlots) => void;
   referenceNames?: string[];
@@ -146,6 +147,7 @@ export function ReferenceUploader({
   headerAction,
   referenceSlots,
   onReferenceSlotsChange,
+  onRequireAuth,
   slots,
   onSlotsChange,
   referenceNames,
@@ -210,22 +212,32 @@ export function ReferenceUploader({
     emitSlots({ ...derivedSlots, [slotId]: upload });
   }
 
+  function runUploadAction(action: () => void) {
+    if (onRequireAuth) {
+      onRequireAuth(action);
+      return;
+    }
+    action();
+  }
+
   function handleDrop(slotId: ReferenceSlotId, files: File[]) {
     const file = files[0];
     if (!file) return;
 
-    if (slotId === "front") {
-      setPendingLegacyFiles(null);
-      setPendingFrontCrop(file);
-      return;
-    }
+    runUploadAction(() => {
+      if (slotId === "front") {
+        setPendingLegacyFiles(null);
+        setPendingFrontCrop(file);
+        return;
+      }
 
-    revokePreviewUrl(derivedSlots[slotId]);
-    updateSlot(slotId, {
-      objectKey: file.name,
-      fileName: file.name,
-      previewUrl: createPreviewUrl(file),
-      file,
+      revokePreviewUrl(derivedSlots[slotId]);
+      updateSlot(slotId, {
+        objectKey: file.name,
+        fileName: file.name,
+        previewUrl: createPreviewUrl(file),
+        file,
+      });
     });
   }
 
@@ -236,29 +248,33 @@ export function ReferenceUploader({
 
   function handleLegacyInput(files: FileList | null) {
     const allFiles = Array.from(files ?? []);
-    if (allFiles[0]) {
-      setPendingLegacyFiles(allFiles);
-      setPendingFrontCrop(allFiles[0]);
-      return;
-    }
+    if (allFiles.length === 0) return;
 
-    SLOT_DEFINITIONS.forEach((slot) => revokePreviewUrl(derivedSlots[slot.id]));
-    const nextSlots = allFiles
-      .slice(0, SLOT_DEFINITIONS.length)
-      .reduce<ReferenceSlots>((next, file, index) => {
-        const slot = SLOT_DEFINITIONS[index];
-        if (slot) {
-          next[slot.id] = {
-            objectKey: file.name,
-            fileName: file.name,
-            previewUrl: createPreviewUrl(file),
-            file,
-          };
-        }
-        return next;
-      }, {});
+    runUploadAction(() => {
+      if (allFiles[0]) {
+        setPendingLegacyFiles(allFiles);
+        setPendingFrontCrop(allFiles[0]);
+        return;
+      }
 
-    emitSlots(nextSlots);
+      SLOT_DEFINITIONS.forEach((slot) => revokePreviewUrl(derivedSlots[slot.id]));
+      const nextSlots = allFiles
+        .slice(0, SLOT_DEFINITIONS.length)
+        .reduce<ReferenceSlots>((next, file, index) => {
+          const slot = SLOT_DEFINITIONS[index];
+          if (slot) {
+            next[slot.id] = {
+              objectKey: file.name,
+              fileName: file.name,
+              previewUrl: createPreviewUrl(file),
+              file,
+            };
+          }
+          return next;
+        }, {});
+
+      emitSlots(nextSlots);
+    });
   }
 
   function confirmFrontCrop(croppedFile: File) {

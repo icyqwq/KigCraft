@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@mui/material/styles";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { kigTheme } from "../../app/theme";
@@ -30,9 +30,11 @@ vi.mock("./FrontReferenceCropper", () => ({
 
 function renderUploader({
   onReferenceSlotsChange,
+  onRequireAuth,
   slots,
 }: {
   onReferenceSlotsChange?: ComponentProps<typeof ReferenceUploader>["onReferenceSlotsChange"];
+  onRequireAuth?: ComponentProps<typeof ReferenceUploader>["onRequireAuth"];
   slots?: ReferenceSlots;
 } = {}) {
   Object.defineProperty(window, "matchMedia", {
@@ -51,7 +53,11 @@ function renderUploader({
 
   return render(
     <ThemeProvider theme={kigTheme}>
-      <ReferenceUploader slots={slots} onReferenceSlotsChange={onReferenceSlotsChange} />
+      <ReferenceUploader
+        slots={slots}
+        onReferenceSlotsChange={onReferenceSlotsChange}
+        onRequireAuth={onRequireAuth}
+      />
     </ThemeProvider>,
   );
 }
@@ -95,6 +101,31 @@ describe("ReferenceUploader", () => {
     expect(screen.getByTestId("reference-slot-expression")).toBeInTheDocument();
     expect(screen.getByTestId("reference-slot-accessory")).toBeInTheDocument();
     expect(screen.queryByTestId("reference-slot-detail")).toBeNull();
+  });
+
+  it("checks authentication before accepting a selected reference file", async () => {
+    const onRequireAuth = vi.fn();
+    const onReferenceSlotsChange = vi.fn();
+    renderUploader({ onRequireAuth, onReferenceSlotsChange });
+
+    const file = new File(["side"], "side.webp", { type: "image/webp" });
+    uploadSlotFile("side", file);
+
+    expect(onRequireAuth).toHaveBeenCalledTimes(1);
+    expect(onReferenceSlotsChange).not.toHaveBeenCalled();
+
+    const action = onRequireAuth.mock.calls[0]?.[0] as (() => void) | undefined;
+    action?.();
+
+    await waitFor(() => expect(onReferenceSlotsChange).toHaveBeenCalledTimes(1));
+    expect(onReferenceSlotsChange.mock.lastCall?.[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "side",
+          file: expect.objectContaining({ name: "side.webp" }),
+        }),
+      ]),
+    );
   });
 
   it("maps legacy multi-file uploads into the five supported slots only", () => {

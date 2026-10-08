@@ -1,0 +1,21 @@
+export default {
+  "reviewNoCharge": "生成クレジットは消費されていません。",
+  "reviewRecover": "元の入力を確認して再試行",
+  "annotations": "今回の注釈",
+  "annotation": "注釈 {{number}}",
+  "imageText": "画像内の文字：{{text}}",
+  "interrupted": "返信が中断されました",
+  "newContent": "新しい内容へ",
+  "answer": "追加の回答",
+  "loadingQuestion": "質問を読み込み中…",
+  "retry": "再試行",
+  "answered": "この質問には回答を送信済みです。この端末の回答の下書きは保持されます。",
+  "expired": "この質問は無効になりました。この端末の回答の下書きは保持されます。",
+  "answerLocalUnavailable": "現在は部分編集を利用できません。回答はこの端末に保存できます。",
+  "edit": "編集して再送信",
+  "loadingMessage": "元のメッセージを読み込み中…",
+  "signInContinue": "ログインして続ける",
+  "lockMode": "元の選択範囲と編集方法を保持：選択範囲外のピクセルを固定",
+  "preserveMode": "元の選択範囲と編集方法を保持：選択範囲外をできるだけ維持",
+  "editLocalUnavailable": "現在は部分編集を利用できません。変更はこの端末に保存できます。"
+} as const;

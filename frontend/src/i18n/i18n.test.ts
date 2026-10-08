@@ -35,7 +35,14 @@ describe("i18n", () => {
 
   it("declares the selectable language menu locales", () => {
     expect(SUPPORTED_LOCALES.map((locale) => locale.value)).toEqual(["zh-CN", "en", "ja"]);
-    expect(SUPPORTED_LOCALES.map((locale) => locale.label)).toEqual(["中文", "English", "日本語"]);
+  });
+
+  it("uses translated locale labels", async () => {
+    await i18n.changeLanguage("en");
+    expect(i18n.t("common.locales.en")).toBe("English");
+    expect(i18n.t("common.locales.ja")).toBe("Japanese");
+    await i18n.changeLanguage("ja");
+    expect(i18n.t("common.locales.en")).toBe("英語");
   });
 
   it("uses English resources when English is selected", async () => {

@@ -1,0 +1,40 @@
+/* V2 dialog: paper panel with a hard shadow that grows on entry. Only transform/opacity animate. */
+.v2-dialog .MuiBackdrop-root { background:var(--kb-scrim); }
+.v2-dialog .MuiDialog-paper.v2-dialog-paper { background:transparent; box-shadow:none; border:0; overflow:visible; isolation:isolate; margin:16px;
+  animation:v2-dialog-rise var(--kb-motion-slow) var(--kb-ease-out); }
+.v2-dialog .MuiDialog-paper.is-closing { transform:translateY(12px); transition:transform var(--kb-motion-base) var(--kb-ease-in); animation:none; }
+.v2-dialog-panel.v2-dialog-body { position:relative; max-width:none; padding:0; display:flex; flex-direction:column; max-height:calc(100dvh - 32px);
+  background:var(--kb-panel); border:2px solid var(--kb-line); color:var(--kb-ink); }
+.v2-dialog-panel::before { content:""; position:absolute; inset:-2px; z-index:calc(var(--kb-z-content) - 1); background:var(--kb-shadow); transform:translate(8px,8px);
+  animation:v2-dialog-shadow var(--kb-motion-slow) var(--kb-ease-out); }
+.is-closing .v2-dialog-panel::before { transform:translate(0,0); transition:transform var(--kb-motion-base) var(--kb-ease-in); animation:none; }
+.v2-dialog-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:20px 20px 0 24px; }
+.v2-dialog-head h2 { margin:0; font-size:20px; font-weight:var(--kb-weight-bold); line-height:1.3; text-wrap:balance; overflow-wrap:anywhere; }
+.v2-dialog-close { margin:-6px -8px 0 0; }
+.v2-dialog-content { padding:16px 24px 0; overflow-y:auto; min-height:0; overscroll-behavior:contain; }
+.v2-dialog-content > :first-child { margin-top:0; }
+.v2-dialog-content p { margin:0 0 12px; line-height:1.7; overflow-wrap:anywhere; }
+.v2-dialog-panel .v2-actions { margin:0; padding:20px 24px 24px; }
+.v2-dialog-panel:not(:has(.v2-actions)) .v2-dialog-content { padding-bottom:24px; }
+.v2-dialog-panel.is-danger .v2-primary { background:var(--kb-danger); }
+.v2-dialog-panel.is-danger .v2-primary:not(:disabled):hover { background:var(--kb-danger); filter:none; }
+.v2-dialog.is-lg .v2-dialog-content { padding-bottom:8px; }
+@keyframes v2-dialog-rise { from { transform:translateY(12px); } }
+@keyframes v2-dialog-shadow { from { transform:translate(0,0); } }
+
+@media (max-width:767px) {
+  .v2-dialog .MuiDialog-container { align-items:flex-end; }
+  .v2-dialog .MuiDialog-paper.v2-dialog-paper { width:100% !important; max-width:none; margin:0; animation-name:v2-sheet-rise; }
+  .v2-dialog .MuiDialog-paper.is-closing { transform:translateY(32px); }
+  .v2-dialog-panel.v2-dialog-body { max-height:92dvh; border-width:2px 0 0; padding-bottom:env(safe-area-inset-bottom); }
+  .v2-dialog-panel::before { display:none; }
+  .v2-dialog-panel .v2-actions { flex-direction:column; align-items:stretch; }
+  .v2-dialog-panel .v2-actions > button { width:100%; }
+}
+@keyframes v2-sheet-rise { from { transform:translateY(32px); } }
+
+@media (prefers-reduced-motion:reduce) {
+  .v2-dialog .MuiDialog-paper.v2-dialog-paper,.v2-dialog-panel::before { animation:none; }
+  .v2-dialog .MuiDialog-paper.is-closing,.is-closing .v2-dialog-panel::before { transform:none; transition:none; }
+  .v2-dialog-panel::before { transform:translate(8px,8px); }
+}

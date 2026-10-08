@@ -7,17 +7,22 @@ import re
 import shutil
 import time
 from collections import defaultdict, deque
-from ipaddress import ip_address, ip_network
+from app.core.client_ip import resolve_client_ip
 from pathlib import Path
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from PIL import Image
 from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import UserRole
+from app.auth.sessions import get_current_user
 from app.core.config import get_settings
 from app.core.paths import resolve_repo_path
+from app.db.models import ReferenceAsset, User
+from app.db.session import get_session
 from app.generation.codex_usage import ensure_codex_usage_allows_generation
 from app.generation.detail_analysis import (
     DetailAnalysisProviderRequest,
@@ -38,9 +43,13 @@ from app.generation.local_edit import (
 from app.generation.provider import (
     ImageGenerationProvider,
     ReferenceRejectedError,
+    get_provider_for_preset,
     get_generation_provider,
     request_generation_cancel,
 )
+from app.generation.presets import ActiveProviderPresetStore, resolve_preset, snapshot_for_preset
+from app.generation.retired import reject_retired
+from app.generation.quota import consume_generation_quota
 from app.generation.queue import generation_queue
 from app.generation.schemas import (
     CreateJobRequest,
@@ -48,11 +57,18 @@ from app.generation.schemas import (
     GenerationEventOut,
     GenerationJobOut,
     GenerationOutputOut,
+    GenerationQueueStatusOut,
     ReferenceDescriptionIn,
     normalize_locale,
 )
 from app.prompts.router import resolve_requirement_prompt_texts
 from app.prompts.safety import sanitize_user_text
+from app.references.router import (
+    _ensure_reference_asset_access,
+    _ensure_uploaded_reference_keys_access,
+    _reference_key_object_key,
+    _resolve_reference_asset,
+)
 
 router = APIRouter(prefix="/generation", tags=["generation"])
 logger = logging.getLogger("uvicorn.error")
@@ -60,6 +76,7 @@ LOCAL_REVISION_MAX_REFERENCE_FILES = 1
 LOCAL_REVISION_MAX_REFERENCE_BYTES = 8 * 1024 * 1024
 LOCAL_REVISION_MAX_REFERENCE_PIXELS = 4_000_000
 LOCAL_REVISION_MAX_REFERENCE_SIDE = 3000
+HIGH_LOAD_PENDING_QUEUE_THRESHOLD = 6
 _create_job_attempts: dict[str, deque[float]] = defaultdict(deque)
 
 
@@ -80,6 +97,13 @@ class LegacyJobOut(BaseModel):
 
 class AcceptOutputRequest(BaseModel):
     output_index: int = Field(ge=1, le=4)
+
+
+class GenerationJobListOut(BaseModel):
+    jobs: list[GenerationJobOut]
+    total: int = 0
+    limit: int = 50
+    offset: int = 0
 
 
 class DetailAnalysisRequest(BaseModel):
@@ -114,9 +138,9 @@ class LocalRevisionReferenceUpload:
     image: Image.Image
 
 
-def clear_jobs() -> None:
-    job_store.clear()
-    generation_queue.clear_pending()
+async def clear_jobs_async() -> None:
+    await generation_queue.cancel_all_and_wait()
+    await job_store.clear()
     _create_job_attempts.clear()
 
 
@@ -131,6 +155,8 @@ def job_to_out(job: StoredJob) -> GenerationJobOut:
         queue_position=job.queue_position,
         phase_label=job.phase_label,
         provider=job.provider,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
         accepted_output_index=job.accepted_output_index,
         token_usage=job.token_usage.to_dict() if job.token_usage else None,
         outputs=[output_to_out(output) for output in job.outputs],
@@ -177,15 +203,32 @@ def legacy_job_to_out(job: StoredJob, project_id: str) -> LegacyJobOut:
     )
 
 
+async def _get_accessible_job(job_id: str, current_user: User) -> StoredJob:
+    job = await job_store.get(job_id)
+    if job is None or (
+        current_user.role != UserRole.admin and job.user_id != current_user.id
+    ):
+        raise HTTPException(status_code=404, detail="Generation job not found")
+    return job
+
+
 @router.post("/detail-analysis", response_model=DetailAnalysisOut)
 async def analyze_generation_details(
     payload: DetailAnalysisRequest,
+    current_user: User = Depends(get_current_user),
     provider: ImageGenerationProvider = Depends(get_generation_provider),
+    session: AsyncSession = Depends(get_session),
 ) -> DetailAnalysisOut:
+    provider, _, _ = _provider_for_new_operation(provider)
     _ensure_real_generation_provider(provider)
     reference_keys = [key.strip() for key in payload.reference_keys if key.strip()]
     if not reference_keys:
         raise HTTPException(status_code=400, detail="At least one reference image is required")
+    await _ensure_detail_analysis_reference_access(
+        reference_keys,
+        current_user=current_user,
+        session=session,
+    )
 
     analysis_id = str(uuid.uuid4())
     character_session_id = payload.character_session_id or str(uuid.uuid4())
@@ -235,6 +278,7 @@ async def analyze_generation_details(
         public_prefix="/api/references",
         source_paths=source_paths,
     )
+    await _record_detail_crop_assets(crops, current_user=current_user, session=session)
     return DetailAnalysisOut(
         analysis_id=analysis_id,
         features=provider_result.features,
@@ -247,14 +291,35 @@ async def analyze_generation_details(
 async def create_job(
     payload: CreateJobRequest,
     request: Request,
+    current_user: User = Depends(get_current_user),
     provider: ImageGenerationProvider = Depends(get_generation_provider),
+    session: AsyncSession = Depends(get_session),
 ) -> GenerationJobOut:
+    provider, provider_id, provider_snapshot = _provider_for_new_operation(provider)
     _enforce_create_job_rate_limit(request)
     _ensure_real_generation_provider(provider)
     if provider.name in {"codex", "codex_bridge"}:
         await ensure_codex_usage_allows_generation(get_settings())
-    job = job_store.create(payload, provider=provider.name)
-    generation_queue.submit_job(job.id, provider)
+    stale_object_keys = await _ensure_uploaded_reference_keys_access(
+        payload.reference_keys,
+        current_user=current_user,
+        session=session,
+    )
+    payload = _drop_stale_reference_keys(payload, stale_object_keys)
+    quota_state = await consume_generation_quota(session, current_user)
+    try:
+        job = await job_store.create(
+            payload,
+            provider=provider_id,
+            user_id=current_user.id,
+            provider_snapshot=provider_snapshot,
+            quota_window_start_at=quota_state.window_start_at if not quota_state.exempt else None,
+        )
+        generation_queue.submit_job(job.id, provider)
+        await session.commit()
+    except Exception as exc:
+        logger.exception("Generation job creation failed provider=%s", provider.name)
+        raise HTTPException(status_code=503, detail=_provider_failure_detail("generation_create", exc)) from None
     return job_to_out(job)
 
 
@@ -265,13 +330,17 @@ async def create_local_revision_job(
     base_image: UploadFile = File(...),
     mask_image: UploadFile = File(...),
     reference_files: list[UploadFile] = File(default=[]),
+    current_user: User = Depends(get_current_user),
     provider: ImageGenerationProvider = Depends(get_generation_provider),
+    session: AsyncSession = Depends(get_session),
 ) -> GenerationJobOut:
+    provider, provider_id, provider_snapshot = _provider_for_new_operation(provider)
     _enforce_create_job_rate_limit(request)
     _ensure_real_generation_provider(provider)
     if provider.name != "codex":
         raise HTTPException(status_code=503, detail="local_revision_provider_unsupported")
-    await ensure_codex_usage_allows_generation(get_settings())
+    if provider.name == "codex":
+        await ensure_codex_usage_allows_generation(get_settings())
 
     parsed = _parse_local_revision_metadata(metadata)
     if parsed.selected_reference_keys or parsed.reference_descriptions:
@@ -280,27 +349,34 @@ async def create_local_revision_job(
     base_bytes = await base_image.read()
     mask_bytes = await mask_image.read()
     try:
-        validate_local_edit_images(base_bytes, mask_bytes)
+        local_info = validate_local_edit_images(base_bytes, mask_bytes)
     except LocalEditValidationError as exc:
         raise HTTPException(status_code=400, detail=exc.code) from exc
-
     uploaded_references = await _validate_local_revision_references(
         reference_files,
         parsed.uploaded_reference_descriptions,
     )
-    job = job_store.create(
-        CreateJobRequest(
-            character_session_id=_safe_local_revision_segment(parsed.character_session_id)
-            if parsed.character_session_id
-            else None,
-            free_text=parsed.edit_note,
-            locale=parsed.locale,
-            reference_keys=[],
-            reference_descriptions=[],
-            generation_mode="front_local_revision",
-        ),
-        provider=provider.name,
-    )
+    quota_state = await consume_generation_quota(session, current_user)
+    try:
+        job = await job_store.create(
+            CreateJobRequest(
+                character_session_id=_safe_local_revision_segment(parsed.character_session_id)
+                if parsed.character_session_id
+                else None,
+                free_text=parsed.edit_note,
+                locale=parsed.locale,
+                reference_keys=[],
+                reference_descriptions=[],
+                generation_mode="front_local_revision",
+            ),
+            provider=provider_id,
+            user_id=current_user.id,
+            provider_snapshot=provider_snapshot,
+            quota_window_start_at=quota_state.window_start_at if not quota_state.exempt else None,
+        )
+    except Exception as exc:
+        logger.exception("Local revision job creation failed provider=%s", provider.name)
+        raise HTTPException(status_code=503, detail=_provider_failure_detail("generation_create", exc)) from None
 
     local_root = resolve_repo_path("runtime/local-revisions") / job.character_session_id / job.id
     try:
@@ -313,7 +389,7 @@ async def create_local_revision_job(
         character_session_id=job.character_session_id,
         job_id=job.id,
     )
-    patched_job = job_store.patch_prompt_payload(
+    patched_job = await job_store.patch_prompt_payload(
         job.id,
         {
             "reference_descriptions": [item.model_dump() for item in uploaded_reference_descriptions],
@@ -331,38 +407,98 @@ async def create_local_revision_job(
     if patched_job is None:
         raise HTTPException(status_code=404, detail="Generation job not found")
 
-    generation_queue.submit_job(job.id, provider)
+    try:
+        generation_queue.submit_job(job.id, provider)
+        await session.commit()
+    except Exception as exc:
+        logger.exception("Local revision job enqueue failed job_id=%s provider=%s", job.id, provider.name)
+        raise HTTPException(status_code=503, detail=_provider_failure_detail("generation_create", exc)) from None
     return job_to_out(patched_job)
 
 
+@router.get("/queue-status", response_model=GenerationQueueStatusOut)
+async def get_queue_status() -> GenerationQueueStatusOut:
+    status = generation_queue.status()
+    return GenerationQueueStatusOut(
+        pending_count=status.pending_count,
+        active_count=status.active_count,
+        parallelism=status.parallelism,
+        high_load=status.pending_count > HIGH_LOAD_PENDING_QUEUE_THRESHOLD,
+    )
+
+
+@router.get("/jobs", response_model=GenerationJobListOut)
+async def list_jobs(
+    current_user: User = Depends(get_current_user),
+    status: str | None = Query(default=None, min_length=1, max_length=80),
+    generation_mode: str | None = Query(default=None, min_length=1, max_length=80),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> GenerationJobListOut:
+    jobs, total = await job_store.list_page(
+        user_id=current_user.id,
+        status=status,
+        generation_mode=generation_mode,
+        limit=limit,
+        offset=offset,
+    )
+    return GenerationJobListOut(
+        jobs=[job_to_out(job) for job in jobs],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
 @router.get("/jobs/{job_id}", response_model=GenerationJobOut)
-async def get_job(job_id: str) -> GenerationJobOut:
-    job = job_store.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Generation job not found")
+async def get_job(job_id: str, current_user: User = Depends(get_current_user)) -> GenerationJobOut:
+    job = await _get_accessible_job(job_id, current_user)
     return job_to_out(job)
 
 
 @router.get("/jobs/{job_id}/events", response_model=list[GenerationEventOut])
-async def get_job_events(job_id: str) -> list[GenerationEventOut]:
-    job = job_store.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Generation job not found")
+async def get_job_events(
+    job_id: str, current_user: User = Depends(get_current_user)
+) -> list[GenerationEventOut]:
+    job = await _get_accessible_job(job_id, current_user)
     return [event_to_out(event) for event in job.events]
 
 
 @router.post("/jobs/{job_id}/accept", response_model=GenerationJobOut)
-async def accept_job_output(job_id: str, payload: AcceptOutputRequest) -> GenerationJobOut:
-    existing_job = job_store.get(job_id)
-    if existing_job is None:
-        raise HTTPException(status_code=404, detail="Generation job not found")
+async def accept_job_output(
+    job_id: str,
+    payload: AcceptOutputRequest,
+    current_user: User = Depends(get_current_user),
+) -> GenerationJobOut:
+    await _get_accessible_job(job_id, current_user)
 
-    job = job_store.accept_output(job_id, payload.output_index)
+    job = await job_store.accept_output(job_id, payload.output_index)
     if job is None:
         raise HTTPException(status_code=400, detail="Candidate output is not available yet")
 
     asyncio.create_task(
-        request_generation_cancel(job.provider, job.id, job.prompt_payload)
+        request_generation_cancel(
+            _provider_for_existing_job_cancel(job), job.id, job.prompt_payload
+        )
+    )
+    return job_to_out(job)
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=GenerationJobOut)
+async def cancel_job(
+    job_id: str, current_user: User = Depends(get_current_user)
+) -> GenerationJobOut:
+    await _get_accessible_job(job_id, current_user)
+
+    job = await job_store.cancel(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Generation job not found")
+
+    generation_queue.cancel_job(job.id)
+    asyncio.create_task(
+        request_generation_cancel(
+            _provider_for_existing_job_cancel(job), job.id, job.prompt_payload
+        )
     )
     return job_to_out(job)
 
@@ -372,27 +508,53 @@ async def create_legacy_project_job(
     project_id: str,
     payload: LegacyCreateJobRequest,
     request: Request,
+    current_user: User = Depends(get_current_user),
     provider: ImageGenerationProvider = Depends(get_generation_provider),
+    session: AsyncSession = Depends(get_session),
 ) -> LegacyJobOut:
+    provider, provider_id, provider_snapshot = _provider_for_new_operation(provider)
     _enforce_create_job_rate_limit(request)
     _ensure_real_generation_provider(provider)
     if provider.name in {"codex", "codex_bridge"}:
         await ensure_codex_usage_allows_generation(get_settings())
-    job = job_store.create(
-        CreateJobRequest(
-            character_session_id=project_id,
-            free_text=payload.free_text,
-            requirement_ids=payload.chip_ids,
-            reference_keys=payload.reference_keys,
-        ),
-        provider=provider.name,
+    stale_object_keys = await _ensure_uploaded_reference_keys_access(
+        payload.reference_keys,
+        current_user=current_user,
+        session=session,
     )
+    valid_reference_keys = [
+        key
+        for key in payload.reference_keys
+        if _reference_key_object_key(key) not in stale_object_keys
+    ]
+    if payload.reference_keys and not valid_reference_keys:
+        raise HTTPException(status_code=400, detail="At least one valid reference image is required")
+    quota_state = await consume_generation_quota(session, current_user)
+    try:
+        job = await job_store.create(
+            CreateJobRequest(
+                character_session_id=project_id,
+                free_text=payload.free_text,
+                requirement_ids=payload.chip_ids,
+                reference_keys=valid_reference_keys,
+            ),
+            provider=provider_id,
+            user_id=current_user.id,
+            provider_snapshot=provider_snapshot,
+            quota_window_start_at=quota_state.window_start_at if not quota_state.exempt else None,
+        )
+        if provider.name != "fixture":
+            generation_queue.submit_job(job.id, provider)
+        await session.commit()
+    except Exception as exc:
+        logger.exception("Legacy generation job creation failed provider=%s project_id=%s", provider.name, project_id)
+        raise HTTPException(status_code=503, detail=_provider_failure_detail("generation_create", exc)) from None
+
     if provider.name != "fixture":
-        generation_queue.submit_job(job.id, provider)
         return legacy_job_to_out(job, project_id)
 
     await generation_queue.run_job(job.id, provider)
-    stored_job = job_store.get(job.id)
+    stored_job = await job_store.get(job.id)
     if stored_job is None:
         raise HTTPException(status_code=404, detail="Generation job not found")
     return legacy_job_to_out(stored_job, project_id)
@@ -416,9 +578,85 @@ def _ensure_real_generation_provider(provider: ImageGenerationProvider) -> None:
     )
 
 
+def _provider_for_new_operation(
+    injected_provider: ImageGenerationProvider,
+) -> tuple[ImageGenerationProvider, str, dict[str, str]]:
+    """Resolve a provider once, keeping explicit fixture/mock test transports intact."""
+    settings = get_settings()
+    reject_retired(injected_provider.name)
+    active = ActiveProviderPresetStore(Path(settings.provider_preset_path)).get()
+    active_snapshot = snapshot_for_preset(resolve_preset(active.preset_id))
+
+    if injected_provider.name in {"fixture", "mock"}:
+        return injected_provider, active.preset_id, active_snapshot
+
+    configured_provider = get_generation_provider()
+    # Dependency overrides are intentionally retained for fixture/mock test runs.
+    if (
+        settings.generation_provider in {"fixture", "mock"}
+        or injected_provider.name != configured_provider.name
+    ):
+        preset_id = "codex_full"
+        return (
+            injected_provider,
+            injected_provider.name,
+            snapshot_for_preset(resolve_preset(preset_id)),
+        )
+
+    return get_provider_for_preset(active_snapshot), active.preset_id, active_snapshot
+
+
+def _provider_for_existing_job_cancel(job: StoredJob) -> ImageGenerationProvider | str:
+    """Keep fixture/mock cancellation local, including legacy jobs without snapshots."""
+    reject_retired(job.provider, job.prompt_payload)
+    if job.provider in {"fixture", "mock"}:
+        return job.provider
+    return get_provider_for_preset(job.prompt_payload)
+
+
 def _provider_failure_detail(operation: str, exc: Exception) -> str:
     message = str(exc).strip() or exc.__class__.__name__
     return f"{operation}_provider_failed: {message}"
+
+
+def _drop_stale_reference_keys(
+    payload: CreateJobRequest,
+    stale_object_keys: set[str],
+) -> CreateJobRequest:
+    if not stale_object_keys:
+        return payload
+
+    reference_keys = [
+        key
+        for key in payload.reference_keys
+        if _reference_key_object_key(key) not in stale_object_keys
+    ]
+    if not reference_keys:
+        raise HTTPException(status_code=400, detail="At least one valid reference image is required")
+
+    reference_descriptions = [
+        item
+        for item in payload.reference_descriptions
+        if _reference_key_object_key(item.reference_key) not in stale_object_keys
+    ]
+    detail_lock = payload.detail_lock
+    if detail_lock is not None:
+        detail_lock = detail_lock.model_copy(
+            update={
+                "crops": [
+                    crop
+                    for crop in detail_lock.crops
+                    if _reference_key_object_key(crop.reference_key) not in stale_object_keys
+                ]
+            }
+        )
+    return payload.model_copy(
+        update={
+            "reference_keys": reference_keys,
+            "reference_descriptions": reference_descriptions,
+            "detail_lock": detail_lock,
+        }
+    )
 
 
 def _snapshot_detail_analysis_references(
@@ -438,14 +676,62 @@ def _snapshot_detail_analysis_references(
         source_path.relative_to(reference_root.resolve())
         if not source_path.is_file():
             continue
-        source_dir.mkdir(parents=True, exist_ok=True)
         suffix = source_path.suffix.lower() or ".img"
         snapshot_path = source_dir / f"reference-{index}{suffix}"
-        shutil.copy2(source_path, snapshot_path)
+        try:
+            source_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_path, snapshot_path)
+        except OSError as exc:
+            logger.warning(
+                "Skipped detail analysis reference snapshot analysis_id=%s reference_key=%s error=%s",
+                analysis_id,
+                normalized_key,
+                exc,
+            )
+            continue
         snapshots[normalized_key] = snapshot_path
         if ":" in normalized_key:
             snapshots[normalized_key.split(":", 1)[1]] = snapshot_path
     return snapshots
+
+
+async def _ensure_detail_analysis_reference_access(
+    reference_keys: list[str],
+    *,
+    current_user: User,
+    session: AsyncSession,
+) -> None:
+    for reference_key in reference_keys:
+        object_key = _reference_key_object_key(reference_key)
+        if object_key is None:
+            raise HTTPException(status_code=404, detail="Reference asset not found")
+        await _ensure_reference_asset_access(
+            object_key=object_key,
+            current_user=current_user,
+            session=session,
+        )
+        _resolve_reference_asset(object_key)
+
+
+async def _record_detail_crop_assets(
+    crops: list[DetailCropOut],
+    *,
+    current_user: User,
+    session: AsyncSession,
+) -> None:
+    if not crops:
+        return
+    for crop in crops:
+        session.add(
+            ReferenceAsset(
+                user_id=current_user.id,
+                kind="detail",
+                object_key=crop.object_key,
+                file_name=Path(crop.object_key).name,
+                mime_type="image/webp",
+            )
+        )
+    await session.commit()
 
 
 def _parse_local_revision_metadata(raw_metadata: str) -> LocalRevisionMetadata:
@@ -536,7 +822,7 @@ def _enforce_create_job_rate_limit(request: Request) -> None:
     window_seconds = max(1, settings.generation_create_rate_limit_window_seconds)
     max_requests = max(1, settings.generation_create_rate_limit_max_requests)
     now = time.monotonic()
-    client_ip = _client_ip(request, settings.trusted_proxy_hosts)
+    client_ip = resolve_client_ip(request, settings.trusted_proxy_hosts)
     attempts = _create_job_attempts[client_ip]
 
     while attempts and now - attempts[0] > window_seconds:
@@ -546,45 +832,8 @@ def _enforce_create_job_rate_limit(request: Request) -> None:
         retry_after_seconds = max(1, int(window_seconds - (now - attempts[0])))
         raise HTTPException(
             status_code=429,
-            detail="生成请求过于频繁，请稍后再试。",
+            detail="generation_rate_limited",
             headers={"Retry-After": str(retry_after_seconds)},
         )
 
     attempts.append(now)
-
-
-def _client_ip(request: Request, trusted_proxy_hosts: str) -> str:
-    direct_host = request.client.host if request.client else "unknown"
-    if not _is_trusted_proxy(direct_host, trusted_proxy_hosts):
-        return direct_host
-
-    forwarded_for = request.headers.get("x-forwarded-for", "")
-    for value in forwarded_for.split(","):
-        candidate = value.strip()
-        if candidate:
-            return candidate
-
-    real_ip = request.headers.get("x-real-ip", "").strip()
-    return real_ip or direct_host
-
-
-def _is_trusted_proxy(host: str, trusted_proxy_hosts: str) -> bool:
-    trusted_values = [item.strip() for item in trusted_proxy_hosts.split(",") if item.strip()]
-    if "*" in trusted_values:
-        return True
-
-    try:
-        remote_ip = ip_address(host)
-    except ValueError:
-        return False
-
-    for trusted_value in trusted_values:
-        try:
-            if "/" in trusted_value:
-                if remote_ip in ip_network(trusted_value, strict=False):
-                    return True
-            elif remote_ip == ip_address(trusted_value):
-                return True
-        except ValueError:
-            continue
-    return False

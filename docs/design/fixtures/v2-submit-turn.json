@@ -1,0 +1,412 @@
+{
+  "valid": [
+    {
+      "client_request_id": "request-001",
+      "intent": "generate_or_clarify",
+      "text": "只把嘴角改成微笑，保持其他部分。",
+      "base_revision_id": "revision-1",
+      "expected_branch_version": 3,
+      "attachments": [
+        {
+          "asset_id": "asset-2",
+          "usage": "仅参考假发纤维，不参考人物五官。"
+        }
+      ],
+      "quote_id": "quote-1"
+    },
+    {
+      "client_request_id": "request-002",
+      "intent": "discussion_only",
+      "text": "Could the wig use a warmer color?",
+      "expected_branch_version": 0
+    },
+    {
+      "client_request_id": "retry-original",
+      "intent": "generate_or_clarify",
+      "text": "",
+      "expected_branch_version": 2,
+      "quote_id": "quote-id",
+      "regenerate_revision_id": "revision-id"
+    },
+    {
+      "client_request_id": "local-input-001",
+      "intent": "generate_or_clarify",
+      "text": "Edit selected area",
+      "base_revision_id": "revision-local",
+      "expected_branch_version": 1,
+      "mask_asset_id": "mask-local",
+      "quote_id": "quote-local",
+      "local_edit_mode": "preserve",
+      "prepared_edit": {
+        "schema_version": 1,
+        "clean_asset_id": "working-master",
+        "root_source_asset_id": "original-root",
+        "root_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 160,
+        "height": 160,
+        "recipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 160,
+            "height": 160,
+            "effectScale": 1
+          }
+        }
+      }
+    },
+    {
+      "client_request_id": "local-input-002",
+      "intent": "generate_or_clarify",
+      "text": "Edit selected area",
+      "base_revision_id": "revision-local",
+      "expected_branch_version": 1,
+      "mask_asset_id": "mask-local",
+      "quote_id": "quote-local",
+      "local_edit_mode": "lock_outside",
+      "prepared_edit": {
+        "schema_version": 1,
+        "clean_asset_id": "working-master",
+        "root_source_asset_id": "original-root",
+        "root_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 160,
+        "height": 160,
+        "recipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 160,
+            "height": 160,
+            "effectScale": 1
+          }
+        }
+      }
+    },
+    {
+      "client_request_id": "edit-first-message",
+      "intent": "generate_or_clarify",
+      "text": "New first request",
+      "expected_branch_version": 3,
+      "base_revision_id": null,
+      "continuation": {
+        "source_revision_id": null,
+        "boundary_message_id": "message-1"
+      },
+      "quote_id": "quote-edit"
+    },
+    {
+      "client_request_id": "edit-second-message",
+      "intent": "generate_or_clarify",
+      "text": "New first request",
+      "expected_branch_version": 3,
+      "base_revision_id": "revision-1",
+      "continuation": {
+        "source_revision_id": "revision-1",
+        "boundary_message_id": "message-2"
+      },
+      "quote_id": "quote-edit"
+    },
+    {
+      "schema_version": 1,
+      "client_request_id": "answer-shared-01",
+      "intent": "generate_or_clarify",
+      "text": "Coral",
+      "base_revision_id": null,
+      "expected_branch_version": 0,
+      "quote_id": "quote",
+      "answer_to": {
+        "operation_id": "question",
+        "version": 1
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "client_request_id": "request-003",
+      "intent": "generate_or_clarify",
+      "text": "Generate",
+      "expected_branch_version": 0
+    },
+    {
+      "client_request_id": "request-004",
+      "intent": "discussion_only",
+      "text": "test",
+      "expected_branch_version": true
+    },
+    {
+      "client_request_id": "request-005",
+      "intent": "discussion_only",
+      "text": "test",
+      "expected_branch_version": 0,
+      "model": "gpt-6-astra"
+    },
+    {
+      "client_request_id": "request-006",
+      "intent": "discussion_only",
+      "text": "test",
+      "expected_branch_version": 0,
+      "max_units": 0
+    },
+    {
+      "client_request_id": "request-007",
+      "intent": "discussion_only",
+      "text": "",
+      "expected_branch_version": 0
+    },
+    {
+      "client_request_id": "retry-original",
+      "intent": "generate_or_clarify",
+      "text": "Changed conditions",
+      "expected_branch_version": 2,
+      "quote_id": "quote-id",
+      "regenerate_revision_id": "revision-id"
+    },
+    {
+      "client_request_id": "retry-original",
+      "intent": "generate_or_clarify",
+      "text": "",
+      "expected_branch_version": 2,
+      "quote_id": "quote-id",
+      "regenerate_revision_id": "revision-id",
+      "base_revision_id": "wrong-base"
+    },
+    {
+      "client_request_id": "local-input-001",
+      "intent": "generate_or_clarify",
+      "text": "Edit selected area",
+      "base_revision_id": "revision-local",
+      "expected_branch_version": 1,
+      "mask_asset_id": null,
+      "quote_id": "quote-local",
+      "local_edit_mode": "preserve",
+      "prepared_edit": {
+        "schema_version": 1,
+        "clean_asset_id": "working-master",
+        "root_source_asset_id": "original-root",
+        "root_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 160,
+        "height": 160,
+        "recipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 160,
+            "height": 160,
+            "effectScale": 1
+          }
+        }
+      }
+    },
+    {
+      "client_request_id": "local-input-001",
+      "intent": "generate_or_clarify",
+      "text": "Edit selected area",
+      "base_revision_id": null,
+      "expected_branch_version": 1,
+      "mask_asset_id": "mask-local",
+      "quote_id": "quote-local",
+      "local_edit_mode": "preserve",
+      "prepared_edit": {
+        "schema_version": 1,
+        "clean_asset_id": "working-master",
+        "root_source_asset_id": "original-root",
+        "root_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 160,
+        "height": 160,
+        "recipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 160,
+            "height": 160,
+            "effectScale": 1
+          }
+        }
+      }
+    },
+    {
+      "client_request_id": "local-input-001",
+      "intent": "discussion_only",
+      "text": "Edit selected area",
+      "base_revision_id": "revision-local",
+      "expected_branch_version": 1,
+      "mask_asset_id": "mask-local",
+      "quote_id": "quote-local",
+      "local_edit_mode": "preserve",
+      "prepared_edit": {
+        "schema_version": 1,
+        "clean_asset_id": "working-master",
+        "root_source_asset_id": "original-root",
+        "root_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 160,
+        "height": 160,
+        "recipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 160,
+            "height": 160,
+            "effectScale": 1
+          }
+        }
+      }
+    },
+    {
+      "client_request_id": "local-input-001",
+      "intent": "generate_or_clarify",
+      "text": "Edit selected area",
+      "base_revision_id": "revision-local",
+      "expected_branch_version": 1,
+      "mask_asset_id": "mask-local",
+      "quote_id": "quote-local",
+      "local_edit_mode": "preserve",
+      "prepared_edit": {
+        "schema_version": 1,
+        "clean_asset_id": "working-master",
+        "root_source_asset_id": "original-root",
+        "root_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 160,
+        "height": 160,
+        "recipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 160,
+            "height": 160,
+            "effectScale": 1
+          }
+        }
+      },
+      "regenerate_revision_id": "old-local"
+    },
+    {
+      "client_request_id": "local-input-001",
+      "intent": "generate_or_clarify",
+      "text": "Edit selected area",
+      "base_revision_id": "revision-local",
+      "expected_branch_version": 1,
+      "mask_asset_id": "mask-local",
+      "quote_id": "quote-local",
+      "local_edit_mode": "preserve",
+      "prepared_edit": {
+        "schema_version": true,
+        "clean_asset_id": "working-master",
+        "root_source_asset_id": "original-root",
+        "root_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 160,
+        "height": 160,
+        "recipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 160,
+            "height": 160,
+            "effectScale": 1
+          }
+        }
+      }
+    },
+    {
+      "client_request_id": "invalid-edit-no-boundary",
+      "intent": "generate_or_clarify",
+      "text": "New first request",
+      "expected_branch_version": 3,
+      "base_revision_id": "revision-1",
+      "continuation": {
+        "source_revision_id": null,
+        "boundary_message_id": null
+      },
+      "quote_id": "quote-edit"
+    },
+    {
+      "client_request_id": "invalid-edit-empty-message",
+      "intent": "generate_or_clarify",
+      "text": "New first request",
+      "expected_branch_version": 3,
+      "base_revision_id": "revision-1",
+      "continuation": {
+        "source_revision_id": null,
+        "boundary_message_id": ""
+      },
+      "quote_id": "quote-edit"
+    },
+    {
+      "client_request_id": "invalid-edit-override-annotation",
+      "intent": "generate_or_clarify",
+      "text": "New first request",
+      "expected_branch_version": 3,
+      "base_revision_id": "revision-1",
+      "continuation": {
+        "source_revision_id": "revision-1",
+        "boundary_message_id": "message-2"
+      },
+      "quote_id": "quote-edit",
+      "annotation_asset_id": "new-annotation"
+    },
+    {
+      "client_request_id": "invalid-edit-override-mask",
+      "intent": "generate_or_clarify",
+      "text": "New first request",
+      "expected_branch_version": 3,
+      "base_revision_id": "revision-1",
+      "continuation": {
+        "source_revision_id": "revision-1",
+        "boundary_message_id": "message-2"
+      },
+      "quote_id": "quote-edit",
+      "mask_asset_id": "new-mask",
+      "local_edit_mode": "preserve"
+    },
+    {
+      "schema_version": 1,
+      "client_request_id": "answer-shared-01",
+      "intent": "generate_or_clarify",
+      "text": "Coral",
+      "base_revision_id": null,
+      "expected_branch_version": 0,
+      "quote_id": "quote",
+      "answer_to": {
+        "operation_id": "question",
+        "version": 0
+      }
+    },
+    {
+      "schema_version": 1,
+      "client_request_id": "answer-shared-01",
+      "intent": "generate_or_clarify",
+      "text": "Coral",
+      "base_revision_id": null,
+      "expected_branch_version": 0,
+      "quote_id": "quote",
+      "answer_to": {
+        "operation_id": "question",
+        "version": 1,
+        "turn_id": "private"
+      }
+    },
+    {
+      "schema_version": 1,
+      "client_request_id": "answer-shared-01",
+      "intent": "generate_or_clarify",
+      "text": "Coral",
+      "base_revision_id": null,
+      "expected_branch_version": 0,
+      "quote_id": "quote",
+      "answer_to": {
+        "operation_id": "question",
+        "version": 1
+      },
+      "continuation": {
+        "source_revision_id": "old"
+      }
+    },
+    {
+      "schema_version": 1,
+      "client_request_id": "answer-shared-01",
+      "intent": "generate_or_clarify",
+      "text": "Coral",
+      "base_revision_id": "base",
+      "expected_branch_version": 0,
+      "quote_id": "quote",
+      "answer_to": {
+        "operation_id": "question",
+        "version": 1
+      },
+      "mask_asset_id": "mask",
+      "local_edit_mode": "preserve"
+    }
+  ]
+}

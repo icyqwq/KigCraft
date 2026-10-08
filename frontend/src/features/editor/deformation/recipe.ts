@@ -1,4 +1,11 @@
-import { completeLandmarks, createDefaultLandmarks, type ManualLandmarkKey, type ManualLandmarks } from "./landmarks";
+import type { ImageCoordinates } from "../core/imageCoordinates";
+import {
+  completeLandmarks,
+  createDefaultLandmarks,
+  setManualLandmarkPoint,
+  type ManualLandmarkKey,
+  type ManualLandmarks,
+} from "./landmarks";
 
 export type FaceControlKey =
   | "faceWidth"
@@ -9,7 +16,8 @@ export type FaceControlKey =
   | "chinLength"
   | "chinPoint"
   | "vLine"
-  | "jawAngle";
+  | "jawAngle"
+  | "temple";
 
 export type EyeControlKey =
   | "eyeSize"
@@ -18,7 +26,20 @@ export type EyeControlKey =
   | "eyeDistance"
   | "eyeVertical"
   | "eyeTilt"
+  | "eyeUpperLid"
+  | "eyeIrisSize"
+  | "eyeLowerLid"
+  | "eyeTailLift"
   | "eyeRegionScale";
+
+export type BrowControlKey =
+  | "browVertical"
+  | "browThickness"
+  | "browLength"
+  | "browSpacing"
+  | "browHeadSpacing"
+  | "browTilt"
+  | "browPeak";
 
 export type MouthControlKey =
   | "mouthHorizontal"
@@ -78,8 +99,10 @@ export type DetailSettings = {
 };
 
 export type EditRecipe = {
+  imageCoordinates?: ImageCoordinates;
   face: Record<FaceControlKey, number>;
   eyes: Record<EyeControlKey, number>;
+  brows: Record<BrowControlKey, number>;
   mouth: Record<MouthControlKey, number>;
   liquify: LiquifyStroke[];
   annotations: AnnotationMark[];
@@ -97,7 +120,11 @@ const faceControlKeys = [
   "chinPoint",
   "vLine",
   "jawAngle",
+  "temple",
 ] as const satisfies readonly FaceControlKey[];
+
+/** Face controls that change where the eyes, brows, nose or mouth sit; the editor groups them as proportions. */
+export const proportionControlKeys = ["faceLength", "midFaceLength"] as const satisfies readonly FaceControlKey[];
 
 const eyeControlKeys = [
   "eyeSize",
@@ -106,8 +133,22 @@ const eyeControlKeys = [
   "eyeDistance",
   "eyeVertical",
   "eyeTilt",
+  "eyeUpperLid",
+  "eyeIrisSize",
+  "eyeLowerLid",
+  "eyeTailLift",
   "eyeRegionScale",
 ] as const satisfies readonly EyeControlKey[];
+
+const browControlKeys = [
+  "browVertical",
+  "browThickness",
+  "browLength",
+  "browSpacing",
+  "browHeadSpacing",
+  "browTilt",
+  "browPeak",
+] as const satisfies readonly BrowControlKey[];
 
 const mouthControlKeys = [
   "mouthHorizontal",
@@ -120,9 +161,13 @@ const mouthControlKeys = [
 export const defaultEyeControlValues = {
   eyeDistance: 0,
   eyeHeight: 0,
+  eyeIrisSize: 0,
+  eyeLowerLid: 0,
   eyeRegionScale: 20,
   eyeSize: 0,
+  eyeTailLift: 0,
   eyeTilt: 0,
+  eyeUpperLid: 0,
   eyeVertical: 0,
   eyeWidth: 0,
 } as const satisfies Record<EyeControlKey, number>;
@@ -137,18 +182,33 @@ export const faceControlRanges = {
   faceWidth: { max: 0.4, min: -0.4, precision: 3 },
   jawAngle: { max: 0.4, min: -0.4, precision: 3 },
   midFaceLength: { max: 0.4, min: -0.4, precision: 3 },
-  smallFace: { max: 0.4, min: 0, precision: 3 },
+  smallFace: { max: 0.4, min: -0.4, precision: 3 },
+  temple: { max: 0.4, min: -0.4, precision: 3 },
   vLine: { max: 0.4, min: 0, precision: 3 },
 } as const satisfies Record<FaceControlKey, ControlRange>;
 export const eyeControlRanges = {
   eyeDistance: { max: 0.1, min: -0.1, precision: 4 },
   eyeHeight: { max: 0.6, min: -0.6, precision: 4 },
+  eyeIrisSize: { max: 1, min: -1, precision: 4 },
+  eyeLowerLid: { max: 1, min: -1, precision: 4 },
   eyeRegionScale: { max: 120, min: -80, precision: 0 },
   eyeSize: { max: 0.6, min: -0.6, precision: 4 },
+  eyeTailLift: { max: 1, min: -1, precision: 4 },
   eyeTilt: { max: 1, min: -1, precision: 4 },
+  eyeUpperLid: { max: 1, min: -1, precision: 4 },
   eyeVertical: { max: 0.1, min: -0.1, precision: 4 },
   eyeWidth: { max: 1, min: -1, precision: 4 },
 } as const satisfies Record<EyeControlKey, ControlRange>;
+
+export const browControlRanges = {
+  browHeadSpacing: { max: 1, min: -1, precision: 4 },
+  browLength: { max: 1, min: -1, precision: 4 },
+  browPeak: { max: 1, min: -1, precision: 4 },
+  browSpacing: { max: 1, min: -1, precision: 4 },
+  browThickness: { max: 1, min: -1, precision: 4 },
+  browTilt: { max: 1, min: -1, precision: 4 },
+  browVertical: { max: 1, min: -1, precision: 4 },
+} as const satisfies Record<BrowControlKey, ControlRange>;
 
 export const mouthControlRanges = {
   mouthHorizontal: { max: 0.05, min: -0.05, precision: 4 },
@@ -179,6 +239,7 @@ export function createEmptyRecipe(): EditRecipe {
   return {
     face: createZeroedRecord(faceControlKeys),
     eyes: { ...defaultEyeControlValues },
+    brows: createZeroedRecord(browControlKeys),
     mouth: createZeroedRecord(mouthControlKeys),
     liquify: [],
     annotations: [],
@@ -206,8 +267,10 @@ export function normalizeEditRecipe(recipe: EditRecipe | Partial<EditRecipe> | u
       };
 
   return {
+    ...(recipe.imageCoordinates ? { imageCoordinates: { ...recipe.imageCoordinates } } : {}),
     face: clampFaceControls({ ...emptyRecipe.face, ...recipe.face }),
     eyes: clampEyeControls(mergedEyes),
+    brows: clampBrowControls({ ...emptyRecipe.brows, ...recipe.brows }),
     mouth: clampMouthControls({ ...emptyRecipe.mouth, ...recipe.mouth }),
     liquify: Array.isArray(recipe.liquify) ? recipe.liquify : [],
     annotations: Array.isArray(recipe.annotations) ? recipe.annotations : [],
@@ -236,6 +299,12 @@ function clampEyeControls(values: Record<EyeControlKey, number>) {
   ) as Record<EyeControlKey, number>;
 }
 
+function clampBrowControls(values: Record<BrowControlKey, number>) {
+  return Object.fromEntries(
+    browControlKeys.map((key) => [key, clampControlRange(values[key], browControlRanges[key])]),
+  ) as Record<BrowControlKey, number>;
+}
+
 function clampMouthControls(values: Record<MouthControlKey, number>) {
   return Object.fromEntries(
     mouthControlKeys.map((key) => [key, clampControlRange(values[key], mouthControlRanges[key])]),
@@ -258,6 +327,16 @@ export function updateEyeControl(recipe: EditRecipe, key: EyeControlKey, value: 
     eyes: {
       ...recipe.eyes,
       [key]: clampControlRange(value, eyeControlRanges[key]),
+    },
+  };
+}
+
+export function updateBrowControl(recipe: EditRecipe, key: BrowControlKey, value: number): EditRecipe {
+  return {
+    ...recipe,
+    brows: {
+      ...recipe.brows,
+      [key]: clampControlRange(value, browControlRanges[key]),
     },
   };
 }
@@ -355,7 +434,7 @@ export function createLiquifyWarpStrokeFromDrag({
 export function updateLiquifyBrush(recipe: EditRecipe, stroke: LiquifyStroke): EditRecipe {
   return {
     ...recipe,
-    liquify: [...recipe.liquify, stroke],
+    liquify: [...recipe.liquify, { ...stroke, radius: stroke.radius * (recipe.imageCoordinates?.effectScale ?? 1) }],
   };
 }
 
@@ -383,7 +462,9 @@ export function updateLiquifyBrushPair(recipe: EditRecipe, stroke: LiquifyStroke
 
   return {
     ...recipe,
-    liquify: [...recipe.liquify, stroke, mirrorLiquifyWarpStroke(stroke, axisX)],
+    liquify: [...recipe.liquify, ...[stroke, mirrorLiquifyWarpStroke(stroke, axisX)].map(item => ({
+      ...item, radius: item.radius * (recipe.imageCoordinates?.effectScale ?? 1),
+    }))],
   };
 }
 
@@ -403,7 +484,9 @@ export function updateLiquifyScaleBrush(
 
   return {
     ...recipe,
-    liquify: [...recipe.liquify.filter((stroke) => stroke.mode !== "scale"), nextStroke],
+    liquify: [...recipe.liquify.filter((stroke) => stroke.mode !== "scale"), {
+      ...nextStroke, radius: nextStroke.radius * (recipe.imageCoordinates?.effectScale ?? 1),
+    }],
   };
 }
 
@@ -416,13 +499,10 @@ export function updateManualLandmark(
 
   return {
     ...recipe,
-    landmarks: {
-      ...landmarks,
-      [key]: {
-        x: clampNormalizedCoordinate(point.x),
-        y: clampNormalizedCoordinate(point.y),
-      },
-    },
+    landmarks: setManualLandmarkPoint(landmarks, key, {
+      x: clampNormalizedCoordinate(point.x),
+      y: clampNormalizedCoordinate(point.y),
+    }),
   };
 }
 
@@ -553,42 +633,33 @@ export function compactRecipeAnnotations(recipe: EditRecipe): EditRecipe {
   };
 }
 
-function buildAnnotationPromptLegacy(annotations: readonly AnnotationMark[]): string {
-  return annotations
-    .map((annotation, index) => {
-      const xPercent = Math.round(clampNormalizedCoordinate(annotation.x) * 100);
-      const yPercent = Math.round(clampNormalizedCoordinate(annotation.y) * 100);
+function annotationPromptPoint(annotation: AnnotationMark): Pick<AnnotationMark, "x" | "y"> {
+  if (annotation.kind === "rect" || annotation.kind === "box") {
+    return {
+      x: (clampNormalizedCoordinate(annotation.x) + clampNormalizedCoordinate(annotation.endX)) / 2,
+      y: (clampNormalizedCoordinate(annotation.y) + clampNormalizedCoordinate(annotation.endY)) / 2,
+    };
+  }
 
-      return `标注 ${index + 1}: ${xPercent}%, ${yPercent}%, ${annotation.note.trim()}`;
-    })
-    .join("\n");
+  return {
+    x: clampNormalizedCoordinate(annotation.x),
+    y: clampNormalizedCoordinate(annotation.y),
+  };
+}
+
+function formatAnnotationPercent(value: number): string {
+  return `${(clampNormalizedCoordinate(value) * 100).toFixed(1)}%`;
 }
 
 export function buildAnnotationPrompt(annotations: readonly AnnotationMark[]): string {
   return annotations
     .map((annotation, index) => {
-      const xPercent = Math.round(clampNormalizedCoordinate(annotation.x) * 100);
-      const yPercent = Math.round(clampNormalizedCoordinate(annotation.y) * 100);
-      const endXPercent = Math.round(clampNormalizedCoordinate(annotation.endX) * 100);
-      const endYPercent = Math.round(clampNormalizedCoordinate(annotation.endY) * 100);
-      const widthPercent = Math.round(clampAnnotationSize(annotation.width) * 100);
-      const heightPercent = Math.round(clampAnnotationSize(annotation.height) * 100);
+      const point = annotationPromptPoint(annotation);
       const note = annotation.note.trim();
       const text = (annotation.text ?? "").trim();
+      const content = annotation.kind === "text" ? text || note : note;
 
-      if (annotation.kind === "arrow") {
-        return `标注 ${index + 1}: 箭头从 ${xPercent}%, ${yPercent}% 指向 ${endXPercent}%, ${endYPercent}%${note ? `, ${note}` : ""}`;
-      }
-
-      if (annotation.kind === "rect" || annotation.kind === "box") {
-        return `标注 ${index + 1}: 框选区域 ${xPercent}%, ${yPercent}%, 宽 ${widthPercent}%, 高 ${heightPercent}%${note ? `, ${note}` : ""}`;
-      }
-
-      if (annotation.kind === "text") {
-        return `标注 ${index + 1}: 文字 "${text || note}" 位于 ${xPercent}%, ${yPercent}%`;
-      }
-
-      return `标注 ${index + 1}: ${xPercent}%, ${yPercent}%, ${note}`;
+      return `${index + 1}. (x: ${formatAnnotationPercent(point.x)}, y: ${formatAnnotationPercent(point.y)}) ${content}`;
     })
     .join("\n");
 }

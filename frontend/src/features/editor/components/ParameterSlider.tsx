@@ -1,3 +1,4 @@
+import { useEditorInputFlush } from "../core/inputFlush";
 import { ActionIcon, Group, Stack, Text, Tooltip } from "../../../ui/mui";
 import { IconChevronLeft, IconChevronRight, IconRefresh } from "@tabler/icons-react";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
@@ -69,7 +70,11 @@ export function ParameterSlider({
   useEffect(
     () => () => {
       removeFinishListeners();
-      cancelQueuedChange();
+      if (isInteractingRef.current) {
+        flushQueuedChange();
+        isInteractingRef.current = false;
+        onInteractionEnd?.();
+      } else cancelQueuedChange();
     },
     [],
   );
@@ -78,6 +83,7 @@ export function ParameterSlider({
   const progress = max > min ? ((visualValue - min) / (max - min)) * 100 : 0;
   const hasChanged = Math.abs(visualValue - defaultValue) > 10 ** -Math.max(precision, 1);
   const resolvedDebugValue = debugValueFormatter?.(visualValue) ?? debugValue;
+  useEditorInputFlush(finishInteraction);
 
   function normalizeSliderValue(nextValue: number) {
     return clampValue(roundToStep(nextValue, step, precision), min, max);
@@ -217,6 +223,9 @@ export function ParameterSlider({
             onBlur={finishInteraction}
             onChange={handleInput}
             onInput={handleInput}
+            onKeyDown={event => {
+              if ((event.ctrlKey || event.metaKey) && ["z", "y"].includes(event.key.toLowerCase())) finishInteraction();
+            }}
             onMouseDown={beginInteraction}
             onPointerDown={beginInteraction}
             onTouchStart={beginInteraction}

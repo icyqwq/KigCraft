@@ -96,9 +96,18 @@ class GenerationJobOut(BaseModel):
     queue_position: int | None = None
     phase_label: str
     provider: str
+    created_at: str | None = None
+    updated_at: str | None = None
     accepted_output_index: int | None = None
     token_usage: TokenUsageOut | None = None
     outputs: list[GenerationOutputOut] = Field(default_factory=list)
+
+
+class GenerationQueueStatusOut(BaseModel):
+    pending_count: int
+    active_count: int
+    parallelism: int
+    high_load: bool = False
 
 
 class GenerationEventOut(BaseModel):

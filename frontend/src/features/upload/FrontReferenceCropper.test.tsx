@@ -74,6 +74,25 @@ describe("FrontReferenceCropper", () => {
     expect(screen.queryByText("使用这张脸")).toBeNull();
   });
 
+  it("allows confirmation without a selected region and keeps the original file", async () => {
+    const onConfirm = vi.fn();
+    cropperMocks.detectAnimeFaceBox.mockResolvedValue(null);
+    const file = new File(["front"], "front.png", { type: "image/png" });
+
+    render(
+      <ThemeProvider theme={kigTheme}>
+        <FrontReferenceCropper file={file} onCancel={vi.fn()} onConfirm={onConfirm} />
+      </ThemeProvider>,
+    );
+
+    const confirmButton = screen.getByTestId("front-reference-crop-confirm");
+    await waitFor(() => expect(confirmButton).toBeEnabled());
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(file));
+    expect(cropperMocks.cropImageFileWithMask).not.toHaveBeenCalled();
+  });
+
   it("uses head wording when automatic detection does not find a usable region", async () => {
     cropperMocks.detectAnimeFaceBox.mockResolvedValue(null);
 
@@ -128,6 +147,42 @@ describe("FrontReferenceCropper", () => {
     await waitFor(() => expect(screen.getByTestId("front-reference-crop-warning")).toBeInTheDocument());
     expect(cropperMocks.createFaceBoxMaskStrokes).not.toHaveBeenCalled();
     expect(screen.getByTestId("front-reference-mask-count")).toHaveTextContent("0");
+  });
+
+  it("allows manual confirmation when automatic face detection never returns", async () => {
+    const onConfirm = vi.fn();
+    cropperMocks.detectAnimeFaceBox.mockReturnValue(new Promise(() => undefined));
+    cropperMocks.cropImageFileWithMask.mockResolvedValue(new File(["cropped"], "front-face.png", { type: "image/png" }));
+
+    render(
+      <ThemeProvider theme={kigTheme}>
+        <FrontReferenceCropper file={new File(["front"], "front.png", { type: "image/png" })} onCancel={vi.fn()} onConfirm={onConfirm} />
+      </ThemeProvider>,
+    );
+
+    const stage = screen.getByTestId("front-reference-crop-stage");
+    vi.spyOn(stage, "getBoundingClientRect").mockReturnValue({
+      bottom: 400,
+      height: 400,
+      left: 0,
+      right: 300,
+      top: 0,
+      width: 300,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    await waitFor(() => expect(stage.querySelector("img")).toBeInTheDocument());
+    fireEvent.pointerDown(stage, { clientX: 150, clientY: 160, pointerId: 1 });
+
+    const confirmButton = screen.getByTestId("front-reference-crop-confirm");
+    await waitFor(() => expect(confirmButton).toBeEnabled());
+    expect(confirmButton).not.toHaveAttribute("aria-busy", "true");
+
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ name: "front-face.png" })));
   });
 
   it("prevents the preview image from being dragged while painting", () => {

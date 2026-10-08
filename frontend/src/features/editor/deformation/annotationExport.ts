@@ -83,6 +83,15 @@ function drawArrowHead(
   context.restore();
 }
 
+/** Text is drawn on one line by Canvas; preview uses the same content and image units. */
+export function annotationDisplayText(annotation: AnnotationMark, label: string) {
+  return (annotation.text?.trim() || annotation.note.trim() || label).replace(/[\t\n\f\r]/g, " ");
+}
+
+export function annotationFontSize(annotation: AnnotationMark, width: number, height: number) {
+  return annotation.fontSize ?? Math.max(18, Math.round(Math.min(width, height) * 0.03));
+}
+
 export function drawAnnotationsToCanvas(
   context: CanvasRenderingContext2D,
   annotations: readonly AnnotationMark[],
@@ -122,8 +131,8 @@ export function drawAnnotationsToCanvas(
     }
 
     if (annotation.kind === "text") {
-      const text = annotation.text?.trim() || annotation.note.trim() || label;
-      context.font = `700 ${annotation.fontSize ?? Math.max(18, Math.round(Math.min(canvasWidth, canvasHeight) * 0.03))}px sans-serif`;
+      const text = annotationDisplayText(annotation, label);
+      context.font = `700 ${annotationFontSize(annotation, canvasWidth, canvasHeight)}px sans-serif`;
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(text, start.x, start.y);

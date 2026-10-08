@@ -2,12 +2,16 @@ export const DEFAULT_LOCALE = "zh-CN" as const;
 export const LOCALE_STORAGE_KEY = "kig-preview.locale.v1";
 
 export const SUPPORTED_LOCALES = [
-  { value: "zh-CN", label: "中文" },
-  { value: "en", label: "English" },
-  { value: "ja", label: "日本語" },
+  { value: "zh-CN" },
+  { value: "en" },
+  { value: "ja" },
 ] as const;
 
 export type AppLocale = (typeof SUPPORTED_LOCALES)[number]["value"];
+
+export function getLocaleLabelKey(locale: AppLocale) {
+  return `common.locales.${locale}` as const;
+}
 
 const supportedLocaleValues = new Set<string>(SUPPORTED_LOCALES.map((locale) => locale.value));
 

@@ -1,17 +1,8 @@
 import { createTheme } from "@mui/material/styles";
+import Fade from "@mui/material/Fade";
+import { tokens, hardShadow } from "../ui/tokens";
 
-const print = {
-  cream: "#f3ead7",
-  creamDeep: "#e5d6bd",
-  creamPanel: "#fff4dd",
-  ink: "#191f23",
-  inkBlue: "#182635",
-  line: "#22282c",
-  muted: "#5f5a50",
-  red: "#c9552f",
-  redDark: "#9d3a20",
-  green: "#516a45",
-};
+const print = tokens.color;
 
 export const kigTheme = createTheme({
   palette: {
@@ -22,29 +13,29 @@ export const kigTheme = createTheme({
     },
     primary: {
       main: print.red,
-      light: "#de6a42",
+      light: print.accentLight,
       dark: print.redDark,
-      contrastText: "#fff7ea",
+      contrastText: print.contrast,
     },
     secondary: {
       main: print.inkBlue,
-      light: "#324456",
-      dark: "#0f1823",
+      light: print.secondaryLight,
+      dark: print.secondaryDark,
       contrastText: print.creamPanel,
     },
     error: {
-      main: "#b6372b",
-      light: "#d45d4f",
-      dark: "#84261f",
-      contrastText: "#fff7ea",
+      main: print.error,
+      light: print.errorLight,
+      dark: print.errorDark,
+      contrastText: print.contrast,
     },
     warning: {
       main: print.red,
-      contrastText: "#fff7ea",
+      contrastText: print.contrast,
     },
     success: {
       main: print.green,
-      contrastText: "#fff7ea",
+      contrastText: print.contrast,
     },
     background: {
       default: print.cream,
@@ -57,61 +48,17 @@ export const kigTheme = createTheme({
     divider: print.line,
   },
   shape: {
-    borderRadius: 0,
+    borderRadius: tokens.shape.borderRadius,
   },
-  typography: {
-    fontFamily:
-      '"Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, "Times New Roman", serif',
-    button: {
-      fontWeight: 900,
-      letterSpacing: 0,
-      textTransform: "none",
-    },
-    h1: {
-      fontSize: "2rem",
-      fontWeight: 900,
-      letterSpacing: 0,
-      lineHeight: 1.15,
-    },
-    h2: {
-      fontSize: "1.5rem",
-      fontWeight: 900,
-      letterSpacing: 0,
-      lineHeight: 1.2,
-    },
-    h3: {
-      fontSize: "1.25rem",
-      fontWeight: 900,
-      letterSpacing: 0,
-      lineHeight: 1.2,
-    },
-    h4: {
-      fontSize: "1.125rem",
-      fontWeight: 900,
-      letterSpacing: 0,
-      lineHeight: 1.2,
-    },
-    h5: {
-      fontSize: "1rem",
-      fontWeight: 900,
-      letterSpacing: 0,
-      lineHeight: 1.2,
-    },
-    body1: {
-      lineHeight: 1.6,
-    },
-    body2: {
-      lineHeight: 1.55,
-    },
-  },
+  typography: tokens.typography,
   components: {
     MuiAlert: {
       styleOverrides: {
         root: {
-          backgroundColor: "#fff4dd",
-          border: `2px solid ${print.line}`,
-          borderRadius: 0,
-          boxShadow: `5px 5px 0 ${print.inkBlue}`,
+          backgroundColor: print.creamPanel,
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+          borderRadius: tokens.shape.borderRadius,
+          boxShadow: hardShadow(tokens.shadow.control),
           color: print.ink,
           fontFamily: "inherit",
         },
@@ -124,33 +71,33 @@ export const kigTheme = createTheme({
       },
       styleOverrides: {
         root: {
-          borderRadius: 0,
-          boxShadow: `5px 5px 0 ${print.inkBlue}`,
+          borderRadius: tokens.shape.borderRadius,
+          boxShadow: hardShadow(tokens.shadow.control),
           fontFamily: "inherit",
-          fontWeight: 900,
+          fontWeight: tokens.weight.strong,
           lineHeight: 1.15,
           minWidth: 0,
           position: "relative",
           transition:
-            "background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 120ms ease, box-shadow 120ms ease",
+            `background-color ${tokens.motion.color}, border-color ${tokens.motion.color}, color ${tokens.motion.color}, transform ${tokens.motion.movement}, box-shadow ${tokens.motion.movement}`,
           whiteSpace: "nowrap",
           "&:hover": {
-            boxShadow: `6px 6px 0 ${print.inkBlue}`,
-            transform: "translate(-1px, -1px)",
+            boxShadow: hardShadow(tokens.shadow.raised),
+            transform: tokens.motion.hover,
           },
           "&:active": {
-            boxShadow: `2px 2px 0 ${print.inkBlue}`,
-            transform: "translate(2px, 2px)",
+            boxShadow: hardShadow(tokens.shadow.pressed),
+            transform: tokens.motion.pressed,
           },
           "&.Mui-disabled": {
             boxShadow: "none",
-            color: "rgba(25, 31, 35, 0.36)",
+            color: print.disabledText,
           },
         },
         contained: {
           backgroundColor: print.red,
-          border: `2px solid ${print.line}`,
-          color: "#fff7ea",
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+          color: print.contrast,
           "&:hover": {
             backgroundColor: print.redDark,
           },
@@ -163,28 +110,28 @@ export const kigTheme = createTheme({
     MuiChip: {
       styleOverrides: {
         root: {
-          backgroundColor: "#efe1c5",
-          border: `2px solid ${print.line}`,
-          borderRadius: 0,
+          backgroundColor: print.chip,
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+          borderRadius: tokens.shape.borderRadius,
           color: print.ink,
           fontFamily: "inherit",
-          fontWeight: 900,
+          fontWeight: tokens.weight.strong,
         },
       },
     },
     MuiIconButton: {
       styleOverrides: {
         root: {
-          backgroundColor: "#fff4dd",
-          border: `2px solid ${print.line}`,
-          borderRadius: 0,
-          boxShadow: `4px 4px 0 ${print.inkBlue}`,
+          backgroundColor: print.creamPanel,
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+          borderRadius: tokens.shape.borderRadius,
+          boxShadow: hardShadow(tokens.shadow.compact),
           color: print.ink,
-          transition: "background-color 140ms ease, color 140ms ease, transform 120ms ease, box-shadow 120ms ease",
+          transition: `background-color ${tokens.motion.color}, color ${tokens.motion.color}, transform ${tokens.motion.movement}, box-shadow ${tokens.motion.movement}`,
           "&:hover": {
-            backgroundColor: "#f1ddbd",
-            boxShadow: `5px 5px 0 ${print.inkBlue}`,
-            transform: "translate(-1px, -1px)",
+            backgroundColor: print.iconHover,
+            boxShadow: hardShadow(tokens.shadow.control),
+            transform: tokens.motion.hover,
           },
         },
       },
@@ -192,23 +139,25 @@ export const kigTheme = createTheme({
     MuiLinearProgress: {
       styleOverrides: {
         root: {
-          backgroundColor: "#ddc7a3",
-          border: `2px solid ${print.line}`,
-          borderRadius: 0,
+          backgroundColor: print.progressTrack,
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+          borderRadius: tokens.shape.borderRadius,
         },
         bar: {
           backgroundColor: print.red,
         },
       },
     },
+    MuiPopover: { defaultProps: { slots: { transition: Fade }, transitionDuration: { enter: 180, exit: 135 } } },
     MuiMenu: {
+      defaultProps: { slots: { transition: Fade }, transitionDuration: { enter: 180, exit: 135 } },
       styleOverrides: {
         paper: {
           backgroundImage: "none",
           backgroundColor: print.creamPanel,
-          border: `2px solid ${print.line}`,
-          borderRadius: 0,
-          boxShadow: `6px 6px 0 ${print.inkBlue}`,
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+          borderRadius: tokens.shape.borderRadius,
+          boxShadow: hardShadow(tokens.shadow.raised),
           color: print.ink,
         },
       },
@@ -218,7 +167,7 @@ export const kigTheme = createTheme({
         root: {
           backgroundColor: print.creamPanel,
           backgroundImage: "none",
-          borderRadius: 0,
+          borderRadius: tokens.shape.borderRadius,
         },
       },
     },
@@ -234,13 +183,13 @@ export const kigTheme = createTheme({
         },
         thumb: {
           backgroundColor: print.red,
-          border: `2px solid ${print.line}`,
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
           borderRadius: "50%",
-          boxShadow: `3px 3px 0 ${print.inkBlue}`,
+          boxShadow: hardShadow(tokens.shadow.thumb),
           height: 18,
           width: 18,
           "&:hover, &.Mui-focusVisible": {
-            boxShadow: `4px 4px 0 ${print.inkBlue}`,
+            boxShadow: hardShadow(tokens.shadow.compact),
           },
         },
         track: {
@@ -261,24 +210,24 @@ export const kigTheme = createTheme({
       styleOverrides: {
         root: {
           "& .MuiFilledInput-root": {
-            backgroundColor: "#fff8e9",
-            border: `2px solid ${print.line}`,
-            borderRadius: 0,
+            backgroundColor: print.panelSoft,
+            border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+            borderRadius: tokens.shape.borderRadius,
             color: print.ink,
             fontFamily: "inherit",
             "&:before, &:after": {
               display: "none",
             },
             "&:hover": {
-              backgroundColor: "#fff4dd",
+              backgroundColor: print.creamPanel,
               borderColor: print.line,
             },
             "&.Mui-focused": {
               borderColor: print.red,
-              boxShadow: `4px 4px 0 ${print.inkBlue}`,
+              boxShadow: hardShadow(tokens.shadow.compact),
             },
             "&.Mui-disabled": {
-              backgroundColor: "#ead9bb",
+              backgroundColor: print.disabledPanel,
             },
           },
           "& .MuiInputBase-input": {
@@ -298,8 +247,8 @@ export const kigTheme = createTheme({
       styleOverrides: {
         tooltip: {
           backgroundColor: print.ink,
-          border: `2px solid ${print.line}`,
-          borderRadius: 0,
+          border: `${tokens.shape.borderWidth}px solid ${print.line}`,
+          borderRadius: tokens.shape.borderRadius,
           color: print.creamPanel,
           fontFamily: "inherit",
         },

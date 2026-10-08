@@ -40,6 +40,7 @@ vi.mock("./deformation/pixiStage", () => ({
 
 vi.mock("./deformation/animeLandmarkDetector", () => ({
   detectAnimeLandmarks: vi.fn().mockResolvedValue(null),
+  warmupAnimeLandmarkDetector: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderEditor(props: Partial<React.ComponentProps<typeof EditorWorkspace>> = {}) {

@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run tokens:check && npm run boundaries:check && tsc && vite build",
     "serve": "node server.mjs",
-    "test": "vitest run"
+    "test": "npm run tokens:check && npm run boundaries:check && npm run boundaries:test && vitest run",
+    "tokens:generate": "node scripts/design-tokens.mjs",
+    "tokens:check": "node scripts/design-tokens.mjs --check",
+    "boundaries:check": "node scripts/editor-boundaries.mjs",
+    "boundaries:test": "node --test scripts/editor-boundaries.test.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -17,6 +21,8 @@
     "@mui/material": "^9.1.2",
     "@tabler/icons-react": "^3.44.0",
     "@tanstack/react-query": "5.81.5",
+    "echarts": "^6.1.0",
+    "fflate": "0.8.3",
     "i18next": "^26.3.4",
     "konva": "^10.3.0",
     "motion": "^12.40.0",

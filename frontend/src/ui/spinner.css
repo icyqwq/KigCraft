@@ -1,0 +1,13 @@
+.kc-spinner {
+  display: inline-block;
+  flex: none;
+  width: var(--kc-spinner-size, 18px);
+  height: var(--kc-spinner-size, 18px);
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: kc-spin 0.7s linear infinite;
+}
+@keyframes kc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .kc-spinner { animation-duration: 2s; } }

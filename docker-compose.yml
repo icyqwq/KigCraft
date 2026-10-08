@@ -1,102 +1,105 @@
+# KigCraft V2 on one machine: PostgreSQL, Redis, API, one Codex worker and the web UI.
+#   cp .env.example .env   (edit it)   ->   docker compose up --build -d
+name: kigcraft
+
+x-app: &app
+  build:
+    context: ./backend
+    args:
+      CODEX_VERSION: ${CODEX_VERSION:-0.159.0-alpha.12.1}
+  image: kigcraft-api:local
+  restart: unless-stopped
+  env_file: [ .env ]
+  environment: &app-env
+    DATABASE_URL: postgresql+asyncpg://kig:${POSTGRES_PASSWORD}@postgres:5432/kig_preview
+    V2_DATABASE_URL: postgresql+asyncpg://kig:${POSTGRES_PASSWORD}@postgres:5432/kig_preview
+    REDIS_URL: redis://redis:6379/0
+    # One shared Codex login serves every account; daily quota is counted per account.
+    V2_ENABLED: "true"
+    V2_RUNTIME_MODE: shared
+    V2_QUOTA_MODE: shared_legacy
+    V2_NEW_OPERATIONS: "true"
+    V2_LOCAL_EDIT_ENABLED: "true"
+    V2_VIEWSETS_ENABLED: "true"
+    V2_CODEX_VERSION: ${CODEX_VERSION:-0.159.0-alpha.12.1}
+    V2_CODEX_PATH: /opt/codex/codex
+    CODEX_PATH: /opt/codex/codex
+    CODEX_HOME: /codex-home
+    V2_ASSET_BACKEND: filesystem
+    V2_STORAGE_DIR: /data/assets
+    V2_RUNTIME_DIR: /data/runtime
+    KIG_STYLE_REFERENCE_DIR: /data/style
+  volumes:
+    - assets:/data/assets
+    - runtime:/data/runtime
+    - ${CODEX_CONFIG_DIR:-./runtime/codex-home}:/codex-home
+    - ./style-references:/data/style:ro
+
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-kig_preview}
-      POSTGRES_USER: ${POSTGRES_USER:-kig}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-postgres-password}
-    ports:
-      - "${POSTGRES_BIND_HOST:-127.0.0.1}:15432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+      POSTGRES_DB: kig_preview
+      POSTGRES_USER: kig
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [ "postgres-data:/var/lib/postgresql/data" ]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-kig}\" -d \"$${POSTGRES_DB:-kig_preview}\""]
+      test: ["CMD-SHELL", "pg_isready -U kig -d kig_preview"]
       interval: 5s
       timeout: 3s
       retries: 20
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "${REDIS_BIND_HOST:-127.0.0.1}:16379:6379"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kig_minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio-password}
-    ports:
-      - "${MINIO_BIND_HOST:-127.0.0.1}:19000:9000"
-      - "${MINIO_BIND_HOST:-127.0.0.1}:19001:9001"
-    volumes:
-      - minio-data:/data
+  # Creates or upgrades the schema, then exits. The API and worker wait for it.
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["python", "-m", "app.db.migrate", "upgrade"]
+    depends_on:
+      postgres: { condition: service_healthy }
 
   api:
-    build:
-      context: ./backend
-    env_file:
-      - .env
+    <<: *app
     environment:
-      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
-      TRUSTED_PROXY_HOSTS: "${TRUSTED_PROXY_HOSTS:-*}"
-      GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS: "${GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS:-300}"
-      GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS: "${GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS:-3}"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-    ports:
-      - "${API_BIND_HOST:-127.0.0.1}:18000:8000"
-    volumes:
-      - ./backend:/app
-      - ./tools:/tools:ro
-      - ./runtime:/runtime
-      - ./runtime:/app/runtime
-      - ./ref:/ref:ro
-      - ./ref:/app/ref:ro
-      - ${CODEX_CONFIG_DIR:-./runtime/codex-home}:/root/.codex
+      <<: *app-env
+      CODEX_UPDATE_ENABLED: "false"
+    ports: [ "${API_BIND_HOST:-127.0.0.1}:18000:8000" ]
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_started
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   worker:
-    build:
-      context: ./backend
-    env_file:
-      - .env
+    <<: *app
     environment:
-      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
-      TRUSTED_PROXY_HOSTS: "${TRUSTED_PROXY_HOSTS:-*}"
-      GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS: "${GENERATION_CREATE_RATE_LIMIT_WINDOW_SECONDS:-300}"
-      GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS: "${GENERATION_CREATE_RATE_LIMIT_MAX_REQUESTS:-3}"
-    command: python -m app.generation.worker
-    volumes:
-      - ./backend:/app
-      - ./tools:/tools:ro
-      - ./runtime:/runtime
-      - ./runtime:/app/runtime
-      - ./ref:/ref:ro
-      - ./ref:/app/ref:ro
-      - ${CODEX_CONFIG_DIR:-./runtime/codex-home}:/root/.codex
+      <<: *app-env
+      CODEX_UPDATE_ENABLED: "false"
+    command: ["python", "-m", "app.operations.worker"]
     depends_on:
-      api:
-        condition: service_started
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
 
   frontend:
     build:
       context: ./frontend
-    ports:
-      - "${FRONTEND_BIND_HOST:-127.0.0.1}:15173:80"
-    depends_on:
-      - api
+    restart: unless-stopped
+    ports: [ "${FRONTEND_BIND_HOST:-127.0.0.1}:15173:80" ]
+    depends_on: [ api ]
 
 volumes:
   postgres-data:
-  minio-data:
+  assets:
+  runtime:

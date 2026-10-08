@@ -1,0 +1,21 @@
+export default {
+  "reviewNoCharge": "No generation credits were charged.",
+  "reviewRecover": "Review original input and retry",
+  "annotations": "Annotations for this request",
+  "annotation": "Annotation {{number}}",
+  "imageText": "Text in image: {{text}}",
+  "interrupted": "Reply interrupted",
+  "newContent": "Jump to new content",
+  "answer": "Your answer",
+  "loadingQuestion": "Loading question…",
+  "retry": "Retry",
+  "answered": "An answer has been submitted. Your local answer draft will be kept.",
+  "expired": "This question has expired. Your local answer draft will be kept.",
+  "answerLocalUnavailable": "Local editing is unavailable right now. You can save your answer on this device.",
+  "edit": "Edit and resend",
+  "loadingMessage": "Loading original message…",
+  "signInContinue": "Sign in to continue",
+  "lockMode": "Keep the original selection and mode: lock pixels outside the selection",
+  "preserveMode": "Keep the original selection and mode: preserve the surrounding area as closely as possible",
+  "editLocalUnavailable": "Local editing is unavailable right now. You can save your changes on this device."
+} as const;

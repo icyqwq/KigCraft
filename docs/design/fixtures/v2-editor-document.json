@@ -1,0 +1,1014 @@
+{
+  "valid": [
+    {
+      "name": "default",
+      "document": {
+        "schemaVersion": 1,
+        "engineVersion": "kigcraft-pixi-1",
+        "normalizedRecipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 640,
+            "height": 480,
+            "effectScale": 1
+          },
+          "face": {
+            "faceWidth": 0,
+            "faceLength": 0,
+            "midFaceLength": 0,
+            "smallFace": 0,
+            "cheekbone": 0,
+            "chinLength": 0,
+            "chinPoint": 0,
+            "vLine": 0,
+            "jawAngle": 0,
+            "temple": 0
+          },
+          "eyes": {
+            "eyeSize": 0,
+            "eyeHeight": 0,
+            "eyeWidth": 0,
+            "eyeDistance": 0,
+            "eyeVertical": 0,
+            "eyeTilt": 0,
+            "eyeUpperLid": 0,
+            "eyeIrisSize": 0,
+            "eyeLowerLid": 0,
+            "eyeTailLift": 0,
+            "eyeRegionScale": 20
+          },
+          "brows": {
+            "browVertical": 0,
+            "browThickness": 0,
+            "browLength": 0,
+            "browSpacing": 0,
+            "browHeadSpacing": 0,
+            "browTilt": 0,
+            "browPeak": 0
+          },
+          "mouth": {
+            "mouthHorizontal": 0,
+            "mouthVertical": 0,
+            "mouthWidth": 0,
+            "mouthSize": 0,
+            "mouthSmile": 0
+          },
+          "liquify": [],
+          "annotations": [],
+          "details": {
+            "accessoryNote": "",
+            "calibrationMode": false,
+            "manualLandmarkEdit": false,
+            "preserveHairEdges": true,
+            "preserveSkinTexture": true,
+            "protectAccessories": true,
+            "protectBangs": true,
+            "refineIntensity": 0.35,
+            "regions": []
+          }
+        },
+        "calibrationRevision": "2f1b748a6b1ec63d1fc47a5c33ca10895205629a17a9ba3a57df4d22f9ce347d",
+        "annotationIntents": [],
+        "maskDocument": {
+          "coordinateSpace": "normalized-image",
+          "radiusUnit": "image-pixel",
+          "strokes": [],
+          "binding": null
+        },
+        "root": {
+          "assetId": "root",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "width": 640,
+          "height": 480
+        },
+        "baseRevision": "revision"
+      }
+    },
+    {
+      "name": "minimum",
+      "document": {
+        "schemaVersion": 1,
+        "engineVersion": "kigcraft-pixi-1",
+        "normalizedRecipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 640,
+            "height": 480,
+            "effectScale": 1
+          },
+          "face": {
+            "faceWidth": -0.4,
+            "faceLength": -0.6,
+            "midFaceLength": -0.4,
+            "smallFace": -0.4,
+            "cheekbone": -0.4,
+            "chinLength": -0.4,
+            "chinPoint": -0.4,
+            "vLine": 0,
+            "jawAngle": -0.4,
+            "temple": -0.4
+          },
+          "eyes": {
+            "eyeSize": -0.6,
+            "eyeHeight": -0.6,
+            "eyeWidth": -1,
+            "eyeDistance": -0.1,
+            "eyeVertical": -0.1,
+            "eyeTilt": -1,
+            "eyeUpperLid": -1,
+            "eyeIrisSize": -1,
+            "eyeLowerLid": -1,
+            "eyeTailLift": -1,
+            "eyeRegionScale": -80
+          },
+          "brows": {
+            "browVertical": -1,
+            "browThickness": -1,
+            "browLength": -1,
+            "browSpacing": -1,
+            "browHeadSpacing": -1,
+            "browTilt": -1,
+            "browPeak": -1
+          },
+          "mouth": {
+            "mouthHorizontal": -0.05,
+            "mouthVertical": -0.06,
+            "mouthWidth": -0.45,
+            "mouthSize": -0.35,
+            "mouthSmile": -0.08
+          },
+          "liquify": [],
+          "annotations": [],
+          "details": {
+            "accessoryNote": "",
+            "calibrationMode": false,
+            "manualLandmarkEdit": false,
+            "preserveHairEdges": true,
+            "preserveSkinTexture": true,
+            "protectAccessories": true,
+            "protectBangs": true,
+            "refineIntensity": 0.35,
+            "regions": []
+          }
+        },
+        "calibrationRevision": "2f1b748a6b1ec63d1fc47a5c33ca10895205629a17a9ba3a57df4d22f9ce347d",
+        "annotationIntents": [],
+        "maskDocument": {
+          "coordinateSpace": "normalized-image",
+          "radiusUnit": "image-pixel",
+          "strokes": [],
+          "binding": null
+        },
+        "root": {
+          "assetId": "root",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "width": 640,
+          "height": 480
+        },
+        "baseRevision": "revision"
+      }
+    },
+    {
+      "name": "maximum",
+      "document": {
+        "schemaVersion": 1,
+        "engineVersion": "kigcraft-pixi-1",
+        "normalizedRecipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 640,
+            "height": 480,
+            "effectScale": 1
+          },
+          "face": {
+            "faceWidth": 0.4,
+            "faceLength": 0.6,
+            "midFaceLength": 0.4,
+            "smallFace": 0.4,
+            "cheekbone": 0.4,
+            "chinLength": 0.4,
+            "chinPoint": 0.4,
+            "vLine": 0.4,
+            "jawAngle": 0.4,
+            "temple": 0.4
+          },
+          "eyes": {
+            "eyeSize": 0.6,
+            "eyeHeight": 0.6,
+            "eyeWidth": 1,
+            "eyeDistance": 0.1,
+            "eyeVertical": 0.1,
+            "eyeTilt": 1,
+            "eyeUpperLid": 1,
+            "eyeIrisSize": 1,
+            "eyeLowerLid": 1,
+            "eyeTailLift": 1,
+            "eyeRegionScale": 120
+          },
+          "brows": {
+            "browVertical": 1,
+            "browThickness": 1,
+            "browLength": 1,
+            "browSpacing": 1,
+            "browHeadSpacing": 1,
+            "browTilt": 1,
+            "browPeak": 1
+          },
+          "mouth": {
+            "mouthHorizontal": 0.05,
+            "mouthVertical": 0.06,
+            "mouthWidth": 0.45,
+            "mouthSize": 0.35,
+            "mouthSmile": 0.08
+          },
+          "liquify": [],
+          "annotations": [],
+          "details": {
+            "accessoryNote": "",
+            "calibrationMode": false,
+            "manualLandmarkEdit": false,
+            "preserveHairEdges": true,
+            "preserveSkinTexture": true,
+            "protectAccessories": true,
+            "protectBangs": true,
+            "refineIntensity": 0.35,
+            "regions": []
+          }
+        },
+        "calibrationRevision": "2f1b748a6b1ec63d1fc47a5c33ca10895205629a17a9ba3a57df4d22f9ce347d",
+        "annotationIntents": [],
+        "maskDocument": {
+          "coordinateSpace": "normalized-image",
+          "radiusUnit": "image-pixel",
+          "strokes": [],
+          "binding": null
+        },
+        "root": {
+          "assetId": "root",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "width": 640,
+          "height": 480
+        },
+        "baseRevision": "revision"
+      }
+    },
+    {
+      "name": "rich",
+      "document": {
+        "schemaVersion": 1,
+        "engineVersion": "kigcraft-pixi-1",
+        "normalizedRecipe": {
+          "imageCoordinates": {
+            "version": 1,
+            "width": 640,
+            "height": 480,
+            "effectScale": 1
+          },
+          "face": {
+            "faceWidth": 0,
+            "faceLength": 0,
+            "midFaceLength": 0,
+            "smallFace": 0,
+            "cheekbone": 0,
+            "chinLength": 0,
+            "chinPoint": 0,
+            "vLine": 0,
+            "jawAngle": 0,
+            "temple": 0
+          },
+          "eyes": {
+            "eyeSize": 0,
+            "eyeHeight": 0,
+            "eyeWidth": 0,
+            "eyeDistance": 0,
+            "eyeVertical": 0,
+            "eyeTilt": 0,
+            "eyeUpperLid": 0,
+            "eyeIrisSize": 0,
+            "eyeLowerLid": 0,
+            "eyeTailLift": 0,
+            "eyeRegionScale": 20
+          },
+          "brows": {
+            "browVertical": 0,
+            "browThickness": 0,
+            "browLength": 0,
+            "browSpacing": 0,
+            "browHeadSpacing": 0,
+            "browTilt": 0,
+            "browPeak": 0
+          },
+          "mouth": {
+            "mouthHorizontal": 0,
+            "mouthVertical": 0,
+            "mouthWidth": 0,
+            "mouthSize": 0,
+            "mouthSmile": 0
+          },
+          "liquify": [
+            {
+              "mode": "expand",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2
+            },
+            {
+              "mode": "shrink",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2
+            },
+            {
+              "mode": "push-left",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2
+            },
+            {
+              "mode": "push-right",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2
+            },
+            {
+              "mode": "push-up",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2
+            },
+            {
+              "mode": "push-down",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2
+            },
+            {
+              "mode": "warp",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2,
+              "deltaX": 0.02,
+              "deltaY": 0
+            },
+            {
+              "mode": "scale",
+              "x": 0.5,
+              "y": 0.5,
+              "radius": 30,
+              "strength": 0.2,
+              "scale": -0.1
+            }
+          ],
+          "annotations": [
+            {
+              "id": "mark-0",
+              "kind": "callout",
+              "x": 0.2,
+              "y": 0.3,
+              "width": 0.1,
+              "height": 0.15,
+              "endX": 0.4,
+              "endY": 0.5,
+              "note": "",
+              "color": "#ef4444",
+              "fontSize": 24,
+              "strokeWidth": 4,
+              "text": ""
+            },
+            {
+              "id": "mark-1",
+              "kind": "box",
+              "x": 0.2,
+              "y": 0.3,
+              "width": 0.1,
+              "height": 0.15,
+              "endX": 0.4,
+              "endY": 0.5,
+              "note": "",
+              "color": "#ef4444",
+              "fontSize": 24,
+              "strokeWidth": 4,
+              "text": ""
+            },
+            {
+              "id": "mark-2",
+              "kind": "pin",
+              "x": 0.2,
+              "y": 0.3,
+              "width": 0.1,
+              "height": 0.15,
+              "endX": 0.4,
+              "endY": 0.5,
+              "note": "",
+              "color": "#ef4444",
+              "fontSize": 24,
+              "strokeWidth": 4,
+              "text": ""
+            },
+            {
+              "id": "mark-3",
+              "kind": "arrow",
+              "x": 0.2,
+              "y": 0.3,
+              "width": 0.1,
+              "height": 0.15,
+              "endX": 0.4,
+              "endY": 0.5,
+              "note": "",
+              "color": "#ef4444",
+              "fontSize": 24,
+              "strokeWidth": 4,
+              "text": ""
+            },
+            {
+              "id": "mark-4",
+              "kind": "rect",
+              "x": 0.2,
+              "y": 0.3,
+              "width": 0.1,
+              "height": 0.15,
+              "endX": 0.4,
+              "endY": 0.5,
+              "note": "",
+              "color": "#ef4444",
+              "fontSize": 24,
+              "strokeWidth": 4,
+              "text": ""
+            },
+            {
+              "id": "mark-5",
+              "kind": "text",
+              "x": 0.2,
+              "y": 0.3,
+              "width": 0.1,
+              "height": 0.15,
+              "endX": 0.4,
+              "endY": 0.5,
+              "note": "",
+              "color": "#ef4444",
+              "fontSize": 24,
+              "strokeWidth": 4,
+              "text": "Visible label"
+            }
+          ],
+          "details": {
+            "accessoryNote": "Keep the hair clip",
+            "calibrationMode": false,
+            "manualLandmarkEdit": true,
+            "preserveHairEdges": true,
+            "preserveSkinTexture": true,
+            "protectAccessories": true,
+            "protectBangs": true,
+            "refineIntensity": 0.35,
+            "regions": [
+              {
+                "id": "detail-1",
+                "x": 0.2,
+                "y": 0.3,
+                "radius": 0.1
+              }
+            ]
+          },
+          "landmarks": {
+            "leftEye": {
+              "x": 0.42,
+              "y": 0.42
+            },
+            "rightEye": {
+              "x": 0.58,
+              "y": 0.42
+            },
+            "chin": {
+              "x": 0.5,
+              "y": 0.7
+            },
+            "jawLeft": {
+              "x": 0.39,
+              "y": 0.6
+            },
+            "jawRight": {
+              "x": 0.61,
+              "y": 0.6
+            },
+            "mouthCenter": {
+              "x": 0.5,
+              "y": 0.57
+            },
+            "mouthLeft": {
+              "x": 0.47,
+              "y": 0.57
+            },
+            "mouthRight": {
+              "x": 0.53,
+              "y": 0.57
+            },
+            "eyeRegions": {
+              "left": {
+                "radiusX": 0.1,
+                "radiusY": 0.1,
+                "radiusTopY": 0.12,
+                "radiusBottomY": 0.08
+              },
+              "right": {
+                "radiusX": 0.1,
+                "radiusY": 0.1,
+                "radiusTopY": 0.12,
+                "radiusBottomY": 0.08
+              }
+            }
+          }
+        },
+        "calibrationRevision": "91fa84e2cfaa259478b0ac07bfb61104fa722d0ab84fabb4c4f82e83d9d7401a",
+        "annotationIntents": [
+          {
+            "annotationId": "mark-0",
+            "intent": "instruction",
+            "text": "Keep detail 0"
+          },
+          {
+            "annotationId": "mark-1",
+            "intent": "instruction",
+            "text": "Keep detail 1"
+          },
+          {
+            "annotationId": "mark-2",
+            "intent": "instruction",
+            "text": "Keep detail 2"
+          },
+          {
+            "annotationId": "mark-3",
+            "intent": "instruction",
+            "text": "Keep detail 3"
+          },
+          {
+            "annotationId": "mark-4",
+            "intent": "instruction",
+            "text": "Keep detail 4"
+          },
+          {
+            "annotationId": "mark-5",
+            "intent": "instruction",
+            "text": "Keep detail 5"
+          }
+        ],
+        "maskDocument": {
+          "coordinateSpace": "normalized-image",
+          "radiusUnit": "image-pixel",
+          "strokes": [
+            {
+              "id": "brush",
+              "mode": "brush",
+              "radius": 18,
+              "points": [
+                {
+                  "x": 0.2,
+                  "y": 0.3
+                },
+                {
+                  "x": 0.3,
+                  "y": 0.4
+                }
+              ]
+            },
+            {
+              "id": "erase",
+              "mode": "erase",
+              "radius": 8,
+              "points": [
+                {
+                  "x": 0.25,
+                  "y": 0.35
+                }
+              ]
+            }
+          ],
+          "binding": {
+            "sourceKey": "root",
+            "width": 640,
+            "height": 480,
+            "geometry": "{\"face\":{\"faceWidth\":0,\"faceLength\":0,\"midFaceLength\":0,\"smallFace\":0,\"cheekbone\":0,\"chinLength\":0,\"chinPoint\":0,\"vLine\":0,\"jawAngle\":0},\"eyes\":{\"eyeDistance\":0,\"eyeHeight\":0,\"eyeRegionScale\":20,\"eyeSize\":0,\"eyeTilt\":0,\"eyeVertical\":0,\"eyeWidth\":0},\"mouth\":{\"mouthHorizontal\":0,\"mouthVertical\":0,\"mouthWidth\":0,\"mouthSize\":0,\"mouthSmile\":0},\"liquify\":[{\"mode\":\"expand\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2},{\"mode\":\"shrink\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2},{\"mode\":\"push-left\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2},{\"mode\":\"push-right\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2},{\"mode\":\"push-up\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2},{\"mode\":\"push-down\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2},{\"mode\":\"warp\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2,\"deltaX\":0.02,\"deltaY\":0},{\"mode\":\"scale\",\"x\":0.5,\"y\":0.5,\"radius\":30,\"strength\":0.2,\"scale\":-0.1}],\"landmarks\":{\"leftEye\":{\"x\":0.42,\"y\":0.42},\"rightEye\":{\"x\":0.58,\"y\":0.42},\"chin\":{\"x\":0.5,\"y\":0.7},\"jawLeft\":{\"x\":0.39,\"y\":0.6},\"jawRight\":{\"x\":0.61,\"y\":0.6},\"mouthCenter\":{\"x\":0.5,\"y\":0.57},\"mouthLeft\":{\"x\":0.47,\"y\":0.57},\"mouthRight\":{\"x\":0.53,\"y\":0.57},\"eyeRegions\":{\"left\":{\"radiusX\":0.1,\"radiusY\":0.1,\"radiusTopY\":0.12,\"radiusBottomY\":0.08},\"right\":{\"radiusX\":0.1,\"radiusY\":0.1,\"radiusTopY\":0.12,\"radiusBottomY\":0.08}}},\"coordinates\":{\"version\":1,\"width\":640,\"height\":480,\"effectScale\":1}}"
+          }
+        },
+        "root": {
+          "assetId": "root",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "width": 640,
+          "height": 480
+        },
+        "baseRevision": "revision"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "missing-control",
+      "path": [
+        "normalizedRecipe",
+        "eyes",
+        "eyeSize"
+      ],
+      "remove": true
+    },
+    {
+      "name": "empty-controls",
+      "path": [
+        "normalizedRecipe",
+        "face"
+      ],
+      "value": {}
+    },
+    {
+      "name": "string-number",
+      "path": [
+        "normalizedRecipe",
+        "face",
+        "faceWidth"
+      ],
+      "value": "0.1"
+    },
+    {
+      "name": "bool-number",
+      "path": [
+        "normalizedRecipe",
+        "face",
+        "faceWidth"
+      ],
+      "value": true
+    },
+    {
+      "name": "outside-control-range",
+      "path": [
+        "normalizedRecipe",
+        "mouth",
+        "mouthSmile"
+      ],
+      "value": 0.081
+    },
+    {
+      "name": "outside-added-eye-control-range",
+      "path": [
+        "normalizedRecipe",
+        "eyes",
+        "eyeTailLift"
+      ],
+      "value": 1.5
+    },
+    {
+      "name": "outside-brow-control-range",
+      "path": [
+        "normalizedRecipe",
+        "brows",
+        "browPeak"
+      ],
+      "value": 1.5
+    },
+    {
+      "name": "missing-brow-controls",
+      "path": [
+        "normalizedRecipe",
+        "brows"
+      ],
+      "remove": true
+    },
+    {
+      "name": "unknown-control",
+      "path": [
+        "normalizedRecipe",
+        "eyes",
+        "other"
+      ],
+      "value": 1
+    },
+    {
+      "name": "missing-details",
+      "path": [
+        "normalizedRecipe",
+        "details"
+      ],
+      "remove": true
+    },
+    {
+      "name": "nonboolean-option",
+      "path": [
+        "normalizedRecipe",
+        "details",
+        "protectBangs"
+      ],
+      "value": 1
+    },
+    {
+      "name": "null-landmarks",
+      "path": [
+        "normalizedRecipe",
+        "landmarks"
+      ],
+      "value": null
+    },
+    {
+      "name": "partial-landmarks",
+      "path": [
+        "normalizedRecipe",
+        "landmarks"
+      ],
+      "value": {
+        "leftEye": {
+          "x": 0.2,
+          "y": 0.3
+        }
+      }
+    },
+    {
+      "name": "invalid-landmark",
+      "path": [
+        "normalizedRecipe",
+        "landmarks",
+        "leftEye",
+        "x"
+      ],
+      "value": 5
+    },
+    {
+      "name": "missing-eye-region",
+      "path": [
+        "normalizedRecipe",
+        "landmarks",
+        "eyeRegions",
+        "left",
+        "radiusTopY"
+      ],
+      "remove": true
+    },
+    {
+      "name": "zero-eye-region",
+      "path": [
+        "normalizedRecipe",
+        "landmarks",
+        "eyeRegions",
+        "left",
+        "radiusX"
+      ],
+      "value": 0
+    },
+    {
+      "name": "unknown-engine-field",
+      "path": [
+        "normalizedRecipe",
+        "program"
+      ],
+      "value": "anything"
+    },
+    {
+      "name": "unknown-details-field",
+      "path": [
+        "normalizedRecipe",
+        "details",
+        "program"
+      ],
+      "value": "anything"
+    },
+    {
+      "name": "null-option",
+      "path": [
+        "normalizedRecipe",
+        "annotations",
+        0,
+        "color"
+      ],
+      "value": null
+    },
+    {
+      "name": "bad-colour",
+      "path": [
+        "normalizedRecipe",
+        "annotations",
+        0,
+        "color"
+      ],
+      "value": "url(remote)"
+    },
+    {
+      "name": "bad-annotation-kind",
+      "path": [
+        "normalizedRecipe",
+        "annotations",
+        0,
+        "kind"
+      ],
+      "value": "execute"
+    },
+    {
+      "name": "missing-annotation-geometry",
+      "path": [
+        "normalizedRecipe",
+        "annotations",
+        0,
+        "endX"
+      ],
+      "remove": true
+    },
+    {
+      "name": "annotation-out-of-image",
+      "path": [
+        "normalizedRecipe",
+        "annotations",
+        0,
+        "x"
+      ],
+      "value": 1.1
+    },
+    {
+      "name": "private-note-in-geometry",
+      "path": [
+        "normalizedRecipe",
+        "annotations",
+        0,
+        "note"
+      ],
+      "value": "private"
+    },
+    {
+      "name": "bad-liquify-mode",
+      "path": [
+        "normalizedRecipe",
+        "liquify",
+        0,
+        "mode"
+      ],
+      "value": "execute"
+    },
+    {
+      "name": "bad-liquify-radius",
+      "path": [
+        "normalizedRecipe",
+        "liquify",
+        0,
+        "radius"
+      ],
+      "value": 0
+    },
+    {
+      "name": "bad-liquify-delta",
+      "path": [
+        "normalizedRecipe",
+        "liquify",
+        6,
+        "deltaX"
+      ],
+      "value": 0.36
+    },
+    {
+      "name": "bad-liquify-scale",
+      "path": [
+        "normalizedRecipe",
+        "liquify",
+        7,
+        "scale"
+      ],
+      "value": 1.01
+    },
+    {
+      "name": "unknown-liquify-field",
+      "path": [
+        "normalizedRecipe",
+        "liquify",
+        0,
+        "remote"
+      ],
+      "value": "url"
+    },
+    {
+      "name": "bad-detail-region",
+      "path": [
+        "normalizedRecipe",
+        "details",
+        "regions",
+        0,
+        "radius"
+      ],
+      "value": 1.1
+    },
+    {
+      "name": "wrong-coordinate-version",
+      "path": [
+        "normalizedRecipe",
+        "imageCoordinates",
+        "version"
+      ],
+      "value": true
+    },
+    {
+      "name": "fractional-dimensions",
+      "path": [
+        "normalizedRecipe",
+        "imageCoordinates",
+        "width"
+      ],
+      "value": 640.5
+    },
+    {
+      "name": "wrong-root-size",
+      "path": [
+        "root",
+        "width"
+      ],
+      "value": 639
+    },
+    {
+      "name": "future-engine",
+      "path": [
+        "engineVersion"
+      ],
+      "value": "kigcraft-pixi-2"
+    },
+    {
+      "name": "future-document",
+      "path": [
+        "schemaVersion"
+      ],
+      "value": 2
+    },
+    {
+      "name": "foreign-mask",
+      "path": [
+        "maskDocument",
+        "binding",
+        "sourceKey"
+      ],
+      "value": "other-root"
+    },
+    {
+      "name": "mask-size",
+      "path": [
+        "maskDocument",
+        "binding",
+        "height"
+      ],
+      "value": 479
+    },
+    {
+      "name": "missing-mask-binding",
+      "path": [
+        "maskDocument",
+        "binding"
+      ],
+      "value": null
+    },
+    {
+      "name": "out-of-image-mask",
+      "path": [
+        "maskDocument",
+        "strokes",
+        0,
+        "points",
+        0,
+        "x"
+      ],
+      "value": -0.1
+    },
+    {
+      "name": "duplicate-mask",
+      "path": [
+        "maskDocument",
+        "strokes",
+        1,
+        "id"
+      ],
+      "value": "brush"
+    },
+    {
+      "name": "duplicate-annotation",
+      "path": [
+        "normalizedRecipe",
+        "annotations",
+        1,
+        "id"
+      ],
+      "value": "mark-0"
+    },
+    {
+      "name": "unknown-intent-target",
+      "path": [
+        "annotationIntents",
+        0,
+        "annotationId"
+      ],
+      "value": "absent"
+    },
+    {
+      "name": "numeric-intent-text",
+      "path": [
+        "annotationIntents",
+        0,
+        "text"
+      ],
+      "value": 4
+    }
+  ]
+}

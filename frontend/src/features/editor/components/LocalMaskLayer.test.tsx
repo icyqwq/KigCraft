@@ -45,4 +45,19 @@ describe("LocalMaskLayer", () => {
     expect(eraseStroke).toHaveAttribute("fill", "black");
     expect(eraseStroke).not.toHaveAttribute("fill", expect.stringContaining("255,255,255"));
   });
+
+  it("preserves subpixel image radii in restored paint, erase and cursor geometry", () => {
+    render(<LocalMaskLayer width={1024} height={2048}
+      brushPreview={{ radius: 0.25, x: 0.5, y: 0.5 }}
+      strokes={[
+        { id: "dot", mode: "brush", radius: 0.25, points: [{ x: 0.5, y: 0.5 }] },
+        { id: "erase", mode: "erase", radius: 0.5, points: [{ x: 0.5, y: 0.5 }] },
+        { id: "line", mode: "brush", radius: 0.25, points: [{ x: 0.2, y: 0.3 }, { x: 0.7, y: 0.3 }] },
+      ]} />);
+    expect(screen.getByTestId("local-mask-stroke-dot")).toHaveAttribute("r", "0.25");
+    expect(screen.getByTestId("local-mask-stroke-erase")).toHaveAttribute("r", "0.5");
+    expect(screen.getByTestId("local-mask-stroke-line")).toHaveAttribute("stroke-width", "0.5");
+    expect(screen.getByTestId("local-mask-brush-preview")).toHaveAttribute("r", "0.25");
+  });
+
 });

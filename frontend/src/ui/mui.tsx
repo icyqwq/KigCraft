@@ -4,7 +4,10 @@ import MuiButton from "@mui/material/Button";
 import MuiCard from "@mui/material/Card";
 import MuiChip from "@mui/material/Chip";
 import MuiContainer from "@mui/material/Container";
-import MuiCircularProgress from "@mui/material/CircularProgress";
+import MuiDialog from "@mui/material/Dialog";
+import MuiDialogActions from "@mui/material/DialogActions";
+import MuiDialogContent from "@mui/material/DialogContent";
+import MuiDialogTitle from "@mui/material/DialogTitle";
 import MuiDivider from "@mui/material/Divider";
 import MuiIconButton from "@mui/material/IconButton";
 import MuiMenu from "@mui/material/Menu";
@@ -23,6 +26,7 @@ import MuiTab from "@mui/material/Tab";
 import useMuiMediaQuery from "@mui/material/useMediaQuery";
 import type { CSSProperties, ElementType, ReactElement, ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Spinner } from "./Spinner";
 import { translateLiteralNode, translateLiteralString } from "../i18n/literalTranslations";
 
 type Responsive<T> = T | { base?: T; sm?: T; md?: T; lg?: T; xl?: T };
@@ -390,17 +394,14 @@ export function Button({
   const isSoftVariant = variant === "light" || variant === "default";
   const isSubtleVariant = variant === "subtle";
   const propSx = sxFromProps(props);
+  const explicitHeight = propSx.height;
   const explicitBackground = propSx.bgcolor ?? propSx.backgroundColor;
   const explicitHoverBackground =
     explicitBackground === "var(--kb-dirty-yellow)" || explicitBackground === "primary.main"
       ? "var(--kb-button-hover)"
       : explicitBackground;
   const loadingIcon = loading ? (
-    <MuiCircularProgress
-      size={muiSize === "small" ? 16 : 18}
-      thickness={5}
-      sx={{ color: variant === "filled" ? "var(--kb-line)" : "var(--kb-accent)" }}
-    />
+    <Spinner size={muiSize === "small" ? 14 : 16} label="loading" />
   ) : null;
   const buttonSx = {
     ...propSx,
@@ -410,7 +411,15 @@ export function Button({
     boxShadow: variant === "filled" || isSoftVariant ? "var(--kb-hard-shadow-sm)" : undefined,
     color: propSx.color ?? (color === "gray" || isSoftVariant || isSubtleVariant ? "text.primary" : undefined),
     justifyContent: justify === "flex-start" ? "flex-start" : justify === "center" ? "center" : undefined,
-    minHeight: propSx.minHeight ?? (muiSize === "small" ? 34 : muiSize === "large" ? 48 : 40),
+    ...(explicitHeight
+      ? {
+          boxSizing: "border-box",
+          height: explicitHeight,
+          minHeight: propSx.minHeight ?? explicitHeight,
+        }
+      : {
+          minHeight: propSx.minHeight ?? (muiSize === "small" ? 34 : muiSize === "large" ? 48 : 40),
+        }),
     px: propSx.px ?? (muiSize === "small" ? 1.5 : 2),
     "&:hover": {
       bgcolor: explicitHoverBackground ?? (isSoftVariant || isSubtleVariant ? "var(--kb-panel-hover)" : undefined),
@@ -676,12 +685,14 @@ export function Switch({
   "aria-label": ariaLabel,
   checked,
   "data-testid": dataTestId,
+  disabled,
   label,
   onChange,
 }: {
   "aria-label"?: string;
   checked?: boolean;
   "data-testid"?: string;
+  disabled?: boolean;
   label?: ReactNode;
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
@@ -698,6 +709,7 @@ export function Switch({
       <MuiSwitch
         checked={checked}
         data-testid={dataTestId}
+        disabled={disabled}
         onChange={onChange}
         slotProps={{ input: { "aria-label": translatedAriaLabel } }}
       />
@@ -845,13 +857,18 @@ export function Container({
 export function Tooltip({
   children,
   label,
+  placement,
+  hidden = false,
 }: {
   children: ReactElement;
   label: ReactNode;
+  placement?: "top" | "bottom" | "left" | "right";
+  /** Keeps the tip closed, e.g. while the control is held down. */
+  hidden?: boolean;
 }) {
   const language = useLiteralLanguage();
   return (
-    <MuiTooltip title={translateLiteralNode(label, language)}>
+    <MuiTooltip title={translateLiteralNode(label, language)} placement={placement} {...(hidden ? { open: false } : {})}>
       <span style={{ display: "inline-flex" }}>{children}</span>
     </MuiTooltip>
   );
@@ -964,6 +981,10 @@ AppShell.Main = function AppShellMain(props: CommonStyleProps & { [key: string]:
   return <MuiBox component="main" sx={sxFromProps(props)} {...translateCommonProps(stripCommonProps(props), language)} />;
 };
 
+export const Dialog = MuiDialog;
+export const DialogActions = MuiDialogActions;
+export const DialogContent = MuiDialogContent;
+export const DialogTitle = MuiDialogTitle;
 export const Menu = MuiMenu;
 export const MenuItem = MuiMenuItem;
 export const Tabs = MuiTabs;
@@ -990,24 +1011,19 @@ export function Progress({
   );
 }
 
+/** Small inline waits use the plain spinner; the KigCraft mark is reserved for image generation. */
 export function CircularProgress({
   size,
-  thickness,
   ...props
 }: CommonStyleProps & {
   [key: string]: unknown;
   size?: number | string;
   thickness?: number;
 }) {
-  const language = useLiteralLanguage();
-  return (
-    <MuiCircularProgress
-      size={size}
-      thickness={thickness}
-      sx={sxFromProps(props)}
-      {...translateCommonProps(stripCommonProps(props), language)}
-    />
-  );
+  const pixels = typeof size === "number" ? size : Number.parseFloat(String(size ?? "")) || 24;
+  const label = typeof props["aria-label"] === "string" ? props["aria-label"] : undefined;
+  const testId = typeof props["data-testid"] === "string" ? props["data-testid"] : undefined;
+  return <Spinner size={pixels} label={label ?? "loading"} testId={testId} />;
 }
 
 export function Skeleton({

@@ -1,0 +1,67 @@
+{
+  "content": {
+    "recipe": {
+      "imageCoordinates": {
+        "version": 1,
+        "width": 640,
+        "height": 480,
+        "effectScale": 1
+      },
+      "face": {
+        "faceWidth": 0,
+        "faceLength": 0,
+        "midFaceLength": 0,
+        "smallFace": 0,
+        "cheekbone": 0,
+        "chinLength": 0,
+        "chinPoint": 0,
+        "vLine": 0,
+        "jawAngle": 0
+      },
+      "eyes": {
+        "eyeSize": 0,
+        "eyeHeight": 0,
+        "eyeWidth": 0,
+        "eyeDistance": 0,
+        "eyeVertical": 0,
+        "eyeTilt": 0,
+        "eyeRegionScale": 20
+      },
+      "mouth": {
+        "mouthHorizontal": 0,
+        "mouthVertical": 0,
+        "mouthWidth": 0,
+        "mouthSize": 0,
+        "mouthSmile": 0
+      },
+      "liquify": [],
+      "annotations": [],
+      "details": {
+        "accessoryNote": "",
+        "calibrationMode": false,
+        "manualLandmarkEdit": false,
+        "preserveHairEdges": true,
+        "preserveSkinTexture": true,
+        "protectAccessories": true,
+        "protectBangs": true,
+        "refineIntensity": 0.35,
+        "regions": []
+      }
+    },
+    "maskStrokes": [],
+    "localEditNote": "retain {original}",
+    "selectedLocalReferenceKeys": [],
+    "localUploadedReferenceFile": null,
+    "localUploadedReferenceDescription": "",
+    "extraReferenceFile": null,
+    "extraReferenceDescription": "",
+    "localReferences": [
+      {
+        "key": "owned",
+        "usage": "original",
+        "assetId": "reference"
+      }
+    ]
+  },
+  "digest": "{\"content\":{\"extraReferenceDescription\":\"\",\"localEditNote\":\"retain {original}\",\"localReferences\":[{\"assetId\":\"reference\",\"file\":null,\"key\":\"owned\",\"usage\":\"original\"}],\"localUploadedReferenceDescription\":\"\",\"maskStrokes\":[],\"recipe\":{\"annotations\":[],\"details\":{\"accessoryNote\":\"\",\"calibrationMode\":false,\"manualLandmarkEdit\":false,\"preserveHairEdges\":true,\"preserveSkinTexture\":true,\"protectAccessories\":true,\"protectBangs\":true,\"refineIntensity\":0.35,\"regions\":[]},\"eyes\":{\"eyeDistance\":0,\"eyeHeight\":0,\"eyeRegionScale\":20,\"eyeSize\":0,\"eyeTilt\":0,\"eyeVertical\":0,\"eyeWidth\":0},\"face\":{\"cheekbone\":0,\"chinLength\":0,\"chinPoint\":0,\"faceLength\":0,\"faceWidth\":0,\"jawAngle\":0,\"midFaceLength\":0,\"smallFace\":0,\"vLine\":0},\"imageCoordinates\":{\"effectScale\":1,\"height\":480,\"version\":1,\"width\":640},\"liquify\":[],\"mouth\":{\"mouthHorizontal\":0,\"mouthSize\":0,\"mouthSmile\":0,\"mouthVertical\":0,\"mouthWidth\":0}},\"selectedLocalReferenceKeys\":[]},\"extra\":null,\"local\":null}"
+}

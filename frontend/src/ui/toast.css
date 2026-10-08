@@ -1,0 +1,11 @@
+.v2-toast-host { position:fixed; z-index:var(--kb-z-toast); left:50%; bottom:max(96px,calc(env(safe-area-inset-bottom) + 84px)); transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; max-width:calc(100vw - 32px); }
+.v2-toast { display:flex; align-items:center; gap:12px; pointer-events:auto; margin:0; padding:10px 16px; font-size:14px; font-weight:var(--kb-weight-semibold); background:var(--kb-ink); color:var(--kb-off-white);
+  border:1.5px solid var(--kb-line); box-shadow:4px 4px 0 var(--kb-shadow); animation:v2-toast-in var(--kb-motion-base) var(--kb-ease-out); }
+.v2-toast.is-leaving { opacity:0; transform:translateY(8px); transition:opacity var(--kb-motion-fast) var(--kb-ease-in),transform var(--kb-motion-fast) var(--kb-ease-in); }
+@keyframes v2-toast-in { from { opacity:0; transform:translateY(8px); } }
+@media (prefers-reduced-motion:reduce) { .v2-toast { animation:v2-toast-fade var(--kb-motion-fast) linear; } .v2-toast.is-leaving { transform:none; } }
+@keyframes v2-toast-fade { from { opacity:0; } }
+.v2-toast.is-error { background:var(--kb-danger); border-color:var(--kb-danger); }
+.v2-toast button { flex-shrink:0; min-height:28px; padding:2px 10px; font:inherit; font-weight:var(--kb-weight-semibold); color:inherit; background:transparent; border:1.5px solid currentColor; cursor:pointer; }
+.v2-toast button:hover { background:rgba(255,255,255,.18); }

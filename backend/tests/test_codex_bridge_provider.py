@@ -134,9 +134,10 @@ def test_codex_prompt_requires_single_front_design_image():
 
     assert "front-view design preview" in prompt_text
     assert "Produce exactly one image" in prompt_text
-    assert "outputs/candidate-1.webp" in prompt_text
+    assert "outputs/candidate-1.png" in prompt_text
     assert "candidate-2.webp" not in prompt_text
-    assert "800x1100" in prompt_text
+    assert "800x1100" not in prompt_text
+    assert "native resolution" in prompt_text.lower()
     assert "stand" not in prompt_text.lower()
     assert "long loose hair must remain continuous" in prompt_text
 
@@ -156,13 +157,14 @@ def test_codex_prompt_supports_single_front_design_stage():
 
     assert "front-view design preview" in prompt_text
     assert "finished-product reference image" in prompt_text
-    assert "only for physical kigurumi head shell product-photo qualities" in prompt_text
-    assert "Do not copy the fixed reference character design" in prompt_text
+    assert "physical product style templates only" in prompt_text
+    assert "Do not copy character identity" in prompt_text
     assert "Produce exactly one image" in prompt_text
-    assert "outputs/candidate-1.webp" in prompt_text
+    assert "outputs/candidate-1.png" in prompt_text
     assert "candidate-2.webp" not in prompt_text
     assert "Output only one front-view design image" in prompt_text
-    assert "800x1100" in prompt_text
+    assert "800x1100" not in prompt_text
+    assert "native resolution" in prompt_text.lower()
     assert "stand" not in prompt_text.lower()
     assert "long loose hair must remain continuous" in prompt_text
 
@@ -181,4 +183,9 @@ def test_codex_prompt_does_not_request_stands_for_turnaround():
     )
 
     assert "stand" not in prompt_text.lower()
+    assert "3000x2000" not in prompt_text
+    assert '"width":3000' not in prompt_text
+    assert "outputs/candidate-1.png" in prompt_text
+    assert "outputs/candidate-1.webp" not in prompt_text
+    assert "native resolution" in prompt_text.lower()
     assert "long loose hair must stay continuous" in prompt_text

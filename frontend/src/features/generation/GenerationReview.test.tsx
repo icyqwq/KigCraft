@@ -8,14 +8,32 @@ import { DEFAULT_LOCALE } from "../../i18n/locales";
 import { GenerationReview } from "./GenerationReview";
 import { GENERATION_DURATION_HISTORY_STORAGE_KEY } from "./generationTiming";
 
-function renderReview({ job, events = [] }: { job: GenerationJob | null; events?: JobEvent[] }) {
+function renderReview({
+  job,
+  events = [],
+  isRetrying = false,
+  onBack,
+  onCancel,
+  onRetry,
+}: {
+  job: GenerationJob | null;
+  events?: JobEvent[];
+  isRetrying?: boolean;
+  onBack?: () => void;
+  onCancel?: () => void;
+  onRetry?: () => void;
+}) {
   render(
     <ThemeProvider theme={kigTheme}>
       <GenerationReview
         events={events}
+        isRetrying={isRetrying}
         job={job}
         selectedCandidateIndex={null}
+        onBack={onBack}
+        onCancel={onCancel}
         onRefresh={vi.fn()}
+        onRetry={onRetry}
         onSelectCandidate={vi.fn()}
       />
     </ThemeProvider>,
@@ -190,6 +208,38 @@ describe("GenerationReview", () => {
     });
 
     expect(screen.getByTestId("generation-queue-position")).toHaveTextContent("排队序号 3");
+  });
+  it("shows a cancel action for active generation jobs", () => {
+    const onCancel = vi.fn();
+    renderReview({
+      job: makeJob([], {
+        phase_label: "generating",
+        progress: 45,
+        status: "generating",
+      }),
+      onCancel,
+    });
+
+    expect(screen.getByTestId("generation-status")).toHaveTextContent(/努力生成中/);
+    screen.getByTestId("generation-cancel").click();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["failed", "cancelled"])("shows retry and back actions for a %s job", (status) => {
+    const onBack = vi.fn();
+    const onRetry = vi.fn();
+    renderReview({
+      isRetrying: true,
+      job: makeJob([], { status }),
+      onBack,
+      onRetry,
+    });
+
+    const retryButton = screen.getByRole("button", { name: "重新提交" });
+    expect(retryButton).toBeDisabled();
+    screen.getByRole("button", { name: "返回上一步" }).click();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
   });
 });
 

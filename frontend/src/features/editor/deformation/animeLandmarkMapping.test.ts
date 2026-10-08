@@ -37,7 +37,7 @@ describe("anime landmark mapping", () => {
       y: 200 + index * 5,
     }));
 
-    const landmarks = mapAnimePointsToManualLandmarks(points, 1000, 800);
+    const { brows: _brows, ...landmarks } = mapAnimePointsToManualLandmarks(points, 1000, 800)!;
 
     expect(landmarks).toEqual({
       leftEye: { x: 0.235, y: 0.3344 },
@@ -62,12 +62,12 @@ describe("anime landmark mapping", () => {
       y: 120 + index * 20,
     }));
 
-    const landmarks = mapAnimePointsToManualLandmarks(points, 1000, 1000, {
+    const { brows: _brows, ...landmarks } = mapAnimePointsToManualLandmarks(points, 1000, 1000, {
       height: 500,
       width: 420,
       x: 280,
       y: 180,
-    });
+    })!;
 
     expect(landmarks).toEqual({
       leftEye: { x: 0.254, y: 0.39 },
@@ -83,6 +83,26 @@ describe("anime landmark mapping", () => {
         right: { radiusBottomY: 0.072, radiusTopY: 0.072, radiusX: 0.05, radiusY: 0.072 },
       },
     });
+  });
+
+  it("orders each brow from the face center outward and pairs it with the nearer eye", () => {
+    const points = faceWithBrows();
+    // Swap the detector brow groups: assignment must follow the eyes, not the index order.
+    [[5, 8], [6, 9], [7, 10]].forEach(([a, b]) => { [points[a], points[b]] = [points[b], points[a]]; });
+
+    const brows = mapAnimePointsToManualLandmarks(points, 1000, 1000)?.brows;
+
+    expect(brows).toEqual({
+      left: { inner: { x: 0.45, y: 0.3 }, peak: { x: 0.4, y: 0.29 }, outer: { x: 0.33, y: 0.3 } },
+      right: { inner: { x: 0.55, y: 0.3 }, peak: { x: 0.6, y: 0.29 }, outer: { x: 0.67, y: 0.3 } },
+    });
+  });
+
+  it("leaves brows to the eye-based estimate when a brow point is at or below the eyes", () => {
+    const points = faceWithBrows();
+    points[9] = { score: 1, x: 600, y: 420 };
+
+    expect(mapAnimePointsToManualLandmarks(points, 1000, 1000)?.brows).toBeUndefined();
   });
 
   it("derives wider eye patch regions from reliable HRNet eye contour points", () => {
@@ -194,3 +214,22 @@ describe("anime landmark mapping", () => {
   });
 });
 
+function faceWithBrows(): DetectedPoint[] {
+  const points: DetectedPoint[] = Array.from({ length: 28 }, () => ({ score: 1, x: 500, y: 600 }));
+  points[1] = { score: 1, x: 320, y: 560 };
+  points[2] = { score: 1, x: 500, y: 700 };
+  points[3] = { score: 1, x: 680, y: 560 };
+  [11, 12, 13, 14, 15, 16].forEach((index, offset) => {
+    points[index] = { score: 1, x: 340 + offset * 24, y: 380 + (offset % 2) * 40 };
+  });
+  [17, 18, 19, 20, 21, 22].forEach((index, offset) => {
+    points[index] = { score: 1, x: 540 + offset * 24, y: 380 + (offset % 2) * 40 };
+  });
+  points[5] = { score: 1, x: 330, y: 300 };
+  points[6] = { score: 1, x: 400, y: 290 };
+  points[7] = { score: 1, x: 450, y: 300 };
+  points[8] = { score: 1, x: 550, y: 300 };
+  points[9] = { score: 1, x: 600, y: 290 };
+  points[10] = { score: 1, x: 670, y: 300 };
+  return points;
+}

@@ -1,71 +1,84 @@
----
-version: "alpha"
-name: "KigCraft paper workbench"
-description: "A retro paper workbench for image generation, review, and editing."
-colors:
-  primary: "#151D24"
-  secondary: "#D9582F"
-  tertiary: "#2D6C82"
-  neutral: "#F5EBD4"
-  surface: "#FFF8E8"
-  accent: "#8FA7D8"
-typography:
-  h1:
-    fontFamily: Georgia
-    fontSize: 2.5rem
-    fontWeight: 700
-  body-md:
-    fontFamily: Georgia
-    fontSize: 1rem
-    fontWeight: 400
-components:
-  button-primary:
-    backgroundColor: "{colors.secondary}"
-    textColor: "#FFF8E8"
-    padding: 12px
----
+# KigCraft print workbench
 
-## Overview
+The current interface uses warm paper surfaces, dark ink, coral actions, square
+panels and hard offset shadows. Preserve this visual language while implementing
+the V2 conversation and editor workflows.
 
-The frontend uses a paper workbench style: cream paper, dark ink borders, small shadows, tab-like navigation, and restrained red-orange active states. The app should feel like a practical maker tool rather than a dashboard.
+## Shared source
 
-The editor and generation flow need dense controls, but the layout should stay readable on small screens. Decorative texture is allowed only when it does not reduce image-editing accuracy.
+Edit `src/ui/tokens.ts` for shared colors, locale fonts, typography, borders,
+shadows and interaction timing. MUI consumes it directly in `src/app/theme.ts`.
+The same source generates `src/ui/tokens.css`, imported by `src/styles/index.css`.
 
-## Colors
+Run `npm run tokens:generate` after editing tokens and include the generated CSS
+in the change. The Vite development server generates it on startup and token
+edits. Both `npm run build` and `npm test` check for stale CSS and fail with the
+regeneration command. No additional runtime dependency is required.
 
-- Ink `#151D24`: main borders, icons, and primary text
-- Active red `#D9582F`: selected tabs, primary actions, and slider fill
-- Deep teal `#2D6C82`: secondary emphasis and information states
-- Paper `#F5EBD4`: page background
-- Warm surface `#FFF8E8`: panels and controls
-- Soft blue `#8FA7D8`: secondary accent and reference-image tone
-- Muted gray `#8C8578`: helper text and inactive controls
+New shared UI styling should use tokens or the existing CSS custom properties.
+Domain colors inside edited images, masks and exported annotations are separate
+from the interface palette. Existing component-local declarations can migrate
+incrementally; the token extraction does not redefine their appearance.
 
-## Typography
+## Color and type
 
-Use Georgia for headings and most UI text. Keep letter spacing at `0`. In compact controls, reduce font size before letting text wrap awkwardly.
+- Page and panel: `color.cream`, `color.creamPanel`, `color.panelSoft`.
+- Text and borders: `color.ink`, `color.muted`, `color.line`.
+- Actions: `color.red`; hover: `color.redDark`; status colors have dedicated tokens.
+- CSS `--kb-muted` remains translucent ink, distinct from MUI secondary text.
+- Default font: the existing Chinese serif stack, with Times New Roman fallback.
+  Japanese uses its own serif stack through `html[data-locale="ja"]`.
+- MUI base size remains 15px; page body remains 1rem. Strong labels use weight 900.
+  Exported annotations retain their own image-space font rules.
 
-## Layout
+Legacy names remain compatible: `--kb-dirty-yellow`, `--kb-muted-red` and
+`--kb-coral` all retain the current coral action color. Their historical names
+do not indicate a yellow palette or the error color.
 
-- Use CSS Grid and Flex with explicit min/max widths for editor panels.
-- Keep workflow actions in the top toolbar or top-right area of the current step.
-- Avoid nested cards. Use full panels, repeated item cards, or tool surfaces.
-- Collapse mobile toolbars into icon-over-label controls so labels do not wrap into two lines.
-- Prevent horizontal overflow on mobile.
+## Surfaces and interaction
 
-## Components
+Panels and controls use square corners and 2px ink borders. Slider thumbs remain
+round. Shadows are hard, without blur: the shared offsets include 8px panels,
+5px controls, 4px compact controls, 6px raised and 2px pressed states.
+The legacy `--kb-hard-shadow-sm` stays at 5px.
 
-- Primary buttons: active red fill, warm text, dark border, and a small offset shadow.
-- Secondary buttons: paper fill, dark border, and the same offset shadow.
-- Cards: 8px radius or less, dark border, paper surface, and light texture.
-- Inputs: label above the field, dark border, paper fill, and active red focus state.
-- Sliders: active red track, dark inactive track, stable thumb size.
-- Tool buttons: use the existing icon system. Do not use emoji as icons.
+Buttons move by -1px on hover and 2px when pressed. Color transitions remain
+140ms; movement and shadow transitions remain 120ms. Keep existing focus,
+disabled behavior when changing shared styling. Shared CSS stops decorative
+animations, control lift and smooth scrolling under reduced motion, while keeping
+image geometry and viewport transforms. MUI keyboard focus has a visible ink
+outline. A preference change must preserve drafts and control values.
 
-## Rules
+Paper texture belongs behind page content. It must not tint images, canvases,
+exported files or foreground controls. Keep the body stacking context and the
+background-only grain layer.
 
-- Preserve existing workflow state, upload behavior, editor tools, landmark detection, and model assets.
-- Do not introduce a second visual system for new steps or tools.
-- Do not use pure black, neon colors, decorative blobs, or heavy gradients.
-- Add paper texture through CSS or local assets only.
-- Keep image canvases, crop previews, masks, and landmarks visually precise.
+## Layout and verification
+
+Use constrained Grid/Flex layouts and responsive collapse. Avoid horizontal
+overflow at 360, 390, 768, 1024 and 1440px; check Chinese, English and Japanese.
+Keep decorative styling outside the image editing surface.
+
+`e2e/tests/editor/design-tokens.spec.ts` compares the shared theme against the
+immutable task-start theme, checks legacy CSS properties and compares rendered
+controls in default, hover, active and focus states. The canvas-color suite
+checks real editor screenshots against an independent color chart. These checks
+do not replace the remaining full-product visual and accessibility acceptance.
+
+Reference-image availability and visual evidence are tracked in
+`docs/design/kigcraft-v2-ui-reference-index.md` at the repository root.
+
+## Editor dependency boundary
+
+The editor core, renderer, detection service and EditorWorkspace must not import
+business API, authentication, design or account modules, including through type
+imports, re-exports and lazy components. Pass business actions as typed callbacks;
+Composer injects the account materials picker into ReferenceAttachments.
+Cloud draft wire/state types live in drafts/cloudTypes.ts, separately from HTTP.
+
+`npm run boundaries:check` follows project source imports and rejects new explicit
+`any` or TypeScript suppression comments in production code. The four existing
+MUI compatibility assertions are capped in their original file. Build and test
+commands run this check; `node --test scripts/editor-boundaries.test.mjs` verifies
+the checker. TypeScript strict checking remains required. This source guard does
+not replace runtime request validation or backend authorization.

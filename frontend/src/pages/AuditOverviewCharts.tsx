@@ -1,15 +1,13 @@
-import { Box, Paper, SimpleGrid, Stack, Text, Title } from "../ui/mui";
+import { Badge, Box, Group, Paper, SimpleGrid, Stack, Text, Title } from "../ui/mui";
 import type { ReactNode } from "react";
 import type { AuditGenerationJob, AuditSummary } from "../api/client";
+import { EChart } from "../components/charts/EChart";
+import { buildSingleTrendOption } from "../components/charts/adminChartOptions";
 
 type TrendPoint = {
   label: string;
   value: number;
 };
-
-const CHART_WIDTH = 320;
-const CHART_HEIGHT = 180;
-const CHART_PADDING = { bottom: 28, left: 36, right: 12, top: 12 };
 
 function jobTimestamp(job: AuditGenerationJob) {
   return job.created_at ?? job.updated_at ?? null;
@@ -58,40 +56,12 @@ export function buildCumulativeUserTrend(jobs: AuditGenerationJob[]): TrendPoint
   return [...dayUsers.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([dayKey, users]) => {
-      for (const sessionId of users) {
-        seenUsers.add(sessionId);
-      }
+      for (const sessionId of users) seenUsers.add(sessionId);
       return {
         label: formatShortDayLabel(dayKey),
         value: seenUsers.size,
       };
     });
-}
-
-function buildPlotPoints(points: TrendPoint[]) {
-  const plotWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right;
-  const plotHeight = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom;
-  const maxValue = Math.max(...points.map((point) => point.value), 1);
-  const singlePoint = points.length === 1;
-
-  return points.map((point, index) => {
-    const xRatio = singlePoint ? 0.5 : index / Math.max(points.length - 1, 1);
-    const yRatio = point.value / maxValue;
-    return {
-      ...point,
-      x: CHART_PADDING.left + xRatio * plotWidth,
-      y: CHART_PADDING.top + (1 - yRatio) * plotHeight,
-    };
-  });
-}
-
-function buildLinePath(plotPoints: Array<TrendPoint & { x: number; y: number }>) {
-  if (!plotPoints.length) return "";
-  if (plotPoints.length === 1) {
-    const [point] = plotPoints;
-    return `M ${CHART_PADDING.left} ${point.y} L ${CHART_WIDTH - CHART_PADDING.right} ${point.y}`;
-  }
-  return plotPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 }
 
 function TrendLineChart({
@@ -117,10 +87,13 @@ function TrendLineChart({
     );
   }
 
-  const plotPoints = buildPlotPoints(points);
-  const linePath = buildLinePath(plotPoints);
-  const maxValue = Math.max(...points.map((point) => point.value), 1);
   const latestValue = points[points.length - 1]?.value ?? 0;
+  const option = buildSingleTrendOption({
+    color,
+    labels: points.map((point) => point.label),
+    name: yAxisHint,
+    values: points.map((point) => point.value),
+  });
 
   return (
     <Stack data-testid={testId} gap="xs">
@@ -129,51 +102,9 @@ function TrendLineChart({
           {totalHint}
         </Text>
       ) : null}
-      <Box className="audit-trend-chart" style={{ color }}>
-        <svg
-          aria-label={yAxisHint}
-          height={CHART_HEIGHT}
-          role="img"
-          viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-          width="100%"
-        >
-          <line
-            className="audit-trend-chart-axis"
-            x1={CHART_PADDING.left}
-            x2={CHART_WIDTH - CHART_PADDING.right}
-            y1={CHART_HEIGHT - CHART_PADDING.bottom}
-            y2={CHART_HEIGHT - CHART_PADDING.bottom}
-          />
-          <line
-            className="audit-trend-chart-axis"
-            x1={CHART_PADDING.left}
-            x2={CHART_PADDING.left}
-            y1={CHART_PADDING.top}
-            y2={CHART_HEIGHT - CHART_PADDING.bottom}
-          />
-          <text className="audit-trend-chart-label" x={4} y={CHART_PADDING.top + 4}>
-            {maxValue}
-          </text>
-          <text
-            className="audit-trend-chart-label"
-            x={4}
-            y={CHART_HEIGHT - CHART_PADDING.bottom - 2}
-          >
-            0
-          </text>
-          <path className="audit-trend-chart-line" d={linePath} fill="none" stroke={color} />
-          {plotPoints.map((point) => (
-            <g key={`${point.label}-${point.value}`}>
-              <circle className="audit-trend-chart-dot" cx={point.x} cy={point.y} fill={color} r={4} />
-              <text className="audit-trend-chart-x-label" textAnchor="middle" x={point.x} y={CHART_HEIGHT - 8}>
-                {point.label}
-              </text>
-            </g>
-          ))}
-        </svg>
-      </Box>
-      <Text c="var(--kb-ink)" fw={800} size="sm">
-        {yAxisHint}：{latestValue.toLocaleString("en-US")}
+      <EChart ariaLabel={yAxisHint} className="audit-trend-chart" option={option} />
+      <Text c="var(--kb-ink)" fw={900} size="sm">
+        {yAxisHint}: {latestValue.toLocaleString("en-US")}
       </Text>
     </Stack>
   );
@@ -207,55 +138,51 @@ function ChartPanel({
   );
 }
 
-export function AuditOverviewCharts({
-  jobs,
-  summary,
-}: {
-  jobs: AuditGenerationJob[];
-  summary: AuditSummary;
-}) {
+export function AuditOverviewCharts({ jobs, summary }: { jobs: AuditGenerationJob[]; summary: AuditSummary }) {
   const userTrend = buildCumulativeUserTrend(jobs);
   const callTrend = buildDailyCallTrend(jobs);
 
   return (
-    <Paper className="grunge-card" data-testid="audit-overview-charts" p={{ base: "md", md: "lg" }} radius={0}>
+    <Paper className="grunge-card audit-section audit-chart-section" data-testid="audit-overview-charts" p={{ base: "md", md: "lg" }} radius={0}>
       <Stack gap="md">
-        <Box>
-          <Title c="var(--kb-ink)" order={2} size="h3">
-            统计图表
-          </Title>
-          <Text c="var(--kb-concrete-grey)" size="sm">
-            按日期展示累计用户与每日调用次数的趋势曲线。
-          </Text>
-        </Box>
+        <Group justify="space-between">
+          <Box>
+            <Title c="var(--kb-ink)" order={2} size="h3">
+              用量趋势
+            </Title>
+            <Text c="var(--kb-concrete-grey)" size="sm">
+              按日期展示累计用户与每日调用次数。
+            </Text>
+          </Box>
+          <Group gap="xs">
+            <Badge color="teal" variant="light">
+              累计用户
+            </Badge>
+            <Badge color="yellow" variant="light">
+              每日调用
+            </Badge>
+          </Group>
+        </Group>
 
         <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
-          <ChartPanel
-            subtitle="按任务创建日期累计独立 session 数量。"
-            testId="audit-user-chart-panel"
-            title="用户趋势"
-          >
+          <ChartPanel subtitle="按任务创建日期累计独立 session 数量。" testId="audit-user-chart-panel" title="用户趋势">
             <TrendLineChart
-              color="var(--kb-teal, #0d9488)"
+              color="#0d9488"
               emptyText="暂无用户趋势数据。"
               points={userTrend}
               testId="audit-user-chart"
-              totalHint={`当前总用户 ${summary.total_users.toLocaleString("en-US")} · 活跃 ${summary.active_users.toLocaleString("en-US")}`}
+              totalHint={`当前总用户 ${summary.total_users.toLocaleString("en-US")} / 活跃 ${summary.active_users.toLocaleString("en-US")}`}
               yAxisHint="累计用户"
             />
           </ChartPanel>
 
-          <ChartPanel
-            subtitle="按任务创建日期统计每日调用次数。"
-            testId="audit-call-chart-panel"
-            title="调用趋势"
-          >
+          <ChartPanel subtitle="按任务创建日期统计每日调用次数。" testId="audit-call-chart-panel" title="调用趋势">
             <TrendLineChart
-              color="var(--kb-coral)"
+              color="#c9552f"
               emptyText="暂无调用趋势数据。"
               points={callTrend}
               testId="audit-call-chart"
-              totalHint={`累计 ${summary.total_calls.toLocaleString("en-US")} 次 · 成功率 ${(summary.success_rate * 100).toFixed(1)}%`}
+              totalHint={`累计 ${summary.total_calls.toLocaleString("en-US")} 次 / 成功率 ${(summary.success_rate * 100).toFixed(1)}%`}
               yAxisHint="每日调用"
             />
           </ChartPanel>

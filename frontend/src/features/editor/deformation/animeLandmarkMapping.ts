@@ -1,4 +1,4 @@
-import type { LandmarkPoint, ManualLandmarks } from "./landmarks";
+import type { BrowLandmark, LandmarkPoint, ManualLandmarks } from "./landmarks";
 
 export type FaceBox = {
   height: number;
@@ -18,6 +18,7 @@ const animeLandmarkCount = 28;
 const leftEyeContourIndexes = [11, 12, 13, 14, 15, 16] as const;
 const rightEyeContourIndexes = [17, 18, 19, 20, 21, 22] as const;
 const mouthContourIndexes = [24, 25, 26, 27] as const;
+const browGroupIndexes = [[5, 6, 7], [8, 9, 10]] as const;
 const controlLandmarkSourceIndexes = new Set([
   1,
   2,
@@ -249,6 +250,7 @@ export function mapAnimePointsToManualLandmarks(
 
   if (!chin || !jawLeft || !jawRight) return null;
   const mouth = deriveMouthPoints(points, leftEye, rightEye, chin);
+  const brows = deriveBrows(points, leftEye, rightEye, imageWidth, imageHeight);
 
   return {
     leftEye: normalizePoint(leftEye, imageWidth, imageHeight),
@@ -260,7 +262,42 @@ export function mapAnimePointsToManualLandmarks(
     mouthLeft: normalizePoint(mouth.left, imageWidth, imageHeight),
     mouthRight: normalizePoint(mouth.right, imageWidth, imageHeight),
     eyeRegions,
+    ...(brows ? { brows } : {}),
   };
+}
+
+/** Brows from the two three-point brow groups, assigned to the nearer eye and ordered from the face center. */
+function deriveBrows(
+  points: readonly DetectedPoint[],
+  leftEye: LandmarkPoint,
+  rightEye: LandmarkPoint,
+  imageWidth: number,
+  imageHeight: number,
+): ManualLandmarks["brows"] {
+  const groups = browGroupIndexes.map((indexes) => indexes.map((index) => points[index]).filter(Boolean));
+  if (groups.some((group) => group.length !== 3)) return undefined;
+
+  const meanX = (group: readonly DetectedPoint[]) => group.reduce((sum, point) => sum + point.x, 0) / group.length;
+  const [first, second] = groups;
+  const firstIsLeft = Math.abs(meanX(first) - leftEye.x) + Math.abs(meanX(second) - rightEye.x) <=
+    Math.abs(meanX(first) - rightEye.x) + Math.abs(meanX(second) - leftEye.x);
+  const faceCenterX = (leftEye.x + rightEye.x) / 2;
+  const toBrow = (group: readonly DetectedPoint[]): BrowLandmark => {
+    const byCenterDistance = [...group].sort((a, b) => Math.abs(a.x - faceCenterX) - Math.abs(b.x - faceCenterX));
+    const [inner, middle, outer] = byCenterDistance;
+    return {
+      inner: normalizePoint(inner, imageWidth, imageHeight),
+      outer: normalizePoint(outer, imageWidth, imageHeight),
+      peak: normalizePoint(middle, imageWidth, imageHeight),
+    };
+  };
+  // A brow point at or below the eye line is a misdetection; the eye-based estimate is safer then.
+  const eyeY = Math.min(leftEye.y, rightEye.y);
+  if (groups.some((group) => group.some((point) => point.y >= eyeY))) return undefined;
+
+  return firstIsLeft
+    ? { left: toBrow(first), right: toBrow(second) }
+    : { left: toBrow(second), right: toBrow(first) };
 }
 
 export function normalizeAnimeDetailPoints(

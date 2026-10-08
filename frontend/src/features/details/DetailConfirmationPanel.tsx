@@ -492,10 +492,8 @@ function ManualDetailForm({
       <Stack gap={1.25}>
         <Group align="flex-start" gap={1.25} wrap="wrap">
           <Box style={{ minWidth: 150 }}>
-            <Text component="label" fw={800} size="xs" htmlFor={`${formId}-kind`}>
-              {kindLabel}
-            </Text>
             <Box
+              aria-label={kindLabel}
               component="select"
               id={`${formId}-kind`}
               onChange={(event: ChangeEvent<HTMLSelectElement>) => onKindChange(event.currentTarget.value as DetailKind)}
@@ -508,8 +506,8 @@ function ManualDetailForm({
                 display: "block",
                 font: "inherit",
                 fontWeight: 700,
-                marginTop: 6,
-                padding: "9px 10px",
+                height: 56,
+                padding: "0 10px",
                 width: "100%",
               }}
             >

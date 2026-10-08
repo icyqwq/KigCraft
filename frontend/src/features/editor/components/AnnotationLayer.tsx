@@ -1,10 +1,19 @@
-import type { PointerEvent } from "react";
+import type { MouseEvent, PointerEvent } from "react";
+import { annotationDisplayText, annotationFontSize } from "../deformation/annotationExport";
 import { IconTrash } from "@tabler/icons-react";
-import type { EyeRegion, LandmarkPoint, ManualLandmarkKey, ManualLandmarks } from "../deformation/landmarks";
+import {
+  getManualLandmarkPoint,
+  type EyeRegion,
+  type LandmarkPoint,
+  type ManualLandmarkKey,
+  type ManualLandmarks,
+} from "../deformation/landmarks";
 import type { AnnotationMark, DetailRegion, LiquifyStroke } from "../deformation/recipe";
 
 export type AnnotationLayerProps = {
   annotations?: AnnotationMark[];
+  /** CSS pixels per source-image pixel before viewport zoom. */
+  imagePixelScale?: number;
   brushPreview?: { active: boolean; mode: "scale" | "warp"; radius: number; x: number; y: number } | null;
   debugFaceBox?: { height: number; width: number; x: number; y: number } | null;
   debugHrnetBox?: { height: number; width: number; x: number; y: number } | null;
@@ -15,6 +24,7 @@ export type AnnotationLayerProps = {
   landmarks?: ManualLandmarks;
   liquifySymmetryAxis?: number;
   liquifyStrokes?: LiquifyStroke[];
+  exactBrushRadius?: boolean;
   secondaryLandmarks?: LandmarkPoint[];
   selectedAnnotationId?: string | null;
   selectedLandmarkKey?: ManualLandmarkKey | null;
@@ -27,7 +37,7 @@ export type AnnotationLayerProps = {
   width: number;
   onAnnotationHandlePointerDown?: (annotationId: string, handle: string, event: PointerEvent<HTMLDivElement>) => void;
   onAnnotationPointerDown?: (annotationId: string, event: PointerEvent<HTMLDivElement>) => void;
-  onAnnotationDelete?: (annotationId: string, event: PointerEvent<HTMLButtonElement>) => void;
+  onAnnotationDelete?: (annotationId: string, event: MouseEvent<HTMLButtonElement>) => void;
   onLandmarkPointerDown?: (key: ManualLandmarkKey, event: PointerEvent<HTMLDivElement>) => void;
 };
 
@@ -40,6 +50,12 @@ const landmarkLabels: Array<{ key: ManualLandmarkKey; label: string }> = [
   { key: "mouthLeft", label: "左嘴角" },
   { key: "mouthCenter", label: "嘴巴" },
   { key: "mouthRight", label: "右嘴角" },
+  { key: "leftBrowInner", label: "左眉头" },
+  { key: "leftBrowPeak", label: "左眉峰" },
+  { key: "leftBrowOuter", label: "左眉尾" },
+  { key: "rightBrowInner", label: "右眉头" },
+  { key: "rightBrowPeak", label: "右眉峰" },
+  { key: "rightBrowOuter", label: "右眉尾" },
 ];
 
 function toPercent(value: number) {
@@ -95,6 +111,7 @@ function selectedActionPosition(annotation: AnnotationMark) {
 
 export function AnnotationLayer({
   annotations = [],
+  imagePixelScale = 1,
   brushPreview,
   debugFaceBox,
   debugHrnetBox,
@@ -112,6 +129,7 @@ export function AnnotationLayer({
   showLandmarks = false,
   showLiquifySymmetryAxis = false,
   showLiquifyStrokes = false,
+  exactBrushRadius = false,
   showSecondaryLandmarks = false,
   visible = true,
   width,
@@ -163,7 +181,8 @@ export function AnnotationLayer({
           <button
             aria-label="删除标注"
             data-testid={`annotation-delete-${annotation.id}`}
-            onPointerDown={(event) => {
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
               event.stopPropagation();
               onAnnotationDelete?.(annotation.id, event);
             }}
@@ -334,22 +353,26 @@ export function AnnotationLayer({
                   border: selected ? `2px solid ${color}` : "2px solid transparent",
                   color,
                   cursor: "grab",
-                  fontSize: annotation.fontSize ?? 24,
-                  fontWeight: 900,
+                  alignItems: "center",
+                  display: "flex",
+                  justifyContent: "center",
+                  fontFamily: "sans-serif",
+                  fontSize: annotationFontSize(annotation, width, height) * imagePixelScale,
+                  fontWeight: 700,
                   left: toPercent(annotation.x),
-                  lineHeight: 1.15,
+                  lineHeight: 1,
                   minHeight: 24,
                   minWidth: 34,
                   pointerEvents: "auto",
                   position: "absolute",
                   top: toPercent(annotation.y),
                   transform: "translate(-50%, -50%)",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
+                  textAlign: "center",
+                  whiteSpace: "pre",
                   width: toPercent(annotation.width),
                 }}
               >
-                {annotation.text?.trim() || "文字"}
+                {annotationDisplayText(annotation, label)}
               </div>
               {selected ? (
                 <div
@@ -436,9 +459,12 @@ export function AnnotationLayer({
 
       {showLandmarks && landmarks
         ? landmarkLabels.map(({ key, label }) => {
-            const landmark = landmarks[key];
+            const landmark = getManualLandmarkPoint(landmarks, key);
             if (!landmark) return null;
             const selected = selectedLandmarkKey === key;
+            const brow = key.includes("Brow");
+            // Brows without detection are estimated from the eyes; show them fainter until confirmed.
+            const estimated = brow && !landmarks.brows;
 
             return (
               <div
@@ -465,17 +491,18 @@ export function AnnotationLayer({
                 }}
               >
                 <span
+                  data-estimated={estimated || undefined}
                   style={{
-                    background: "var(--kb-accent)",
-                    border: "2px solid var(--kb-panel)",
+                    background: brow ? "rgb(20, 160, 140)" : "var(--kb-accent)",
+                    border: estimated ? "2px dashed var(--kb-panel)" : "2px solid var(--kb-panel)",
                     borderRadius: 999,
                     boxShadow: selected
-                      ? "0 0 0 7px rgba(209, 82, 47, 0.28), var(--kb-hard-shadow-sm)"
-                      : "0 0 0 5px rgba(209, 82, 47, 0.16)",
+                      ? `0 0 0 7px ${brow ? "rgba(20, 160, 140, 0.3)" : "rgba(209, 82, 47, 0.28)"}, var(--kb-hard-shadow-sm)`
+                      : `0 0 0 5px ${brow ? "rgba(20, 160, 140, 0.16)" : "rgba(209, 82, 47, 0.16)"}`,
                     display: "block",
-                    height: 18,
-                    opacity: 0.72,
-                    width: 18,
+                    height: brow ? 12 : 18,
+                    opacity: estimated ? 0.45 : 0.72,
+                    width: brow ? 12 : 18,
                   }}
                 />
               </div>
@@ -645,7 +672,7 @@ export function AnnotationLayer({
       {showLiquifyStrokes
         ? visibleLiquifyStrokes.map((stroke, index) => {
             const size =
-              stroke.mode === "scale"
+              exactBrushRadius ? stroke.radius * 2 : stroke.mode === "scale"
                 ? Math.max(24, Math.min(320, stroke.radius * 2))
                 : Math.max(18, Math.min(180, stroke.radius * 1.4));
             const isScaleStroke = stroke.mode === "scale";
@@ -694,13 +721,13 @@ export function AnnotationLayer({
                 : "2px dashed rgba(103, 232, 249, 0.95)",
             borderRadius: 999,
             boxShadow: "0 0 0 3px rgba(15, 23, 42, 0.18)",
-            height: Math.max(18, Math.min(360, brushPreview.radius * 2)),
+            height: exactBrushRadius ? brushPreview.radius * 2 : Math.max(18, Math.min(360, brushPreview.radius * 2)),
             left: toPercent(brushPreview.x),
             pointerEvents: "none",
             position: "absolute",
             top: toPercent(brushPreview.y),
             transform: "translate(-50%, -50%)",
-            width: Math.max(18, Math.min(360, brushPreview.radius * 2)),
+            width: exactBrushRadius ? brushPreview.radius * 2 : Math.max(18, Math.min(360, brushPreview.radius * 2)),
             zIndex: 7,
           }}
         />

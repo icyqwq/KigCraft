@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
   "fastapi==0.116.1",
   "uvicorn[standard]==0.35.0",
+  "pydantic[email]==2.11.7",
   "pydantic-settings==2.10.1",
   "sqlalchemy[asyncio]==2.0.41",
   "asyncpg==0.30.0",
@@ -15,6 +16,8 @@ dependencies = [
   "python-multipart==0.0.20",
   "pyjwt==2.10.1",
   "pillow==11.2.1",
+  "argon2-cffi==25.1.0",
+  "tencentcloud-sdk-python==3.0.1427",
 ]
 
 [project.optional-dependencies]
@@ -31,3 +34,10 @@ testpaths = ["tests"]
 line-length = 100
 target-version = "py312"
 
+
+[tool.setuptools.package-data]
+"app.db" = ["v2_schema_manifest.json"]
+"app.maintenance" = ["codex_snapshot_schema.json"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

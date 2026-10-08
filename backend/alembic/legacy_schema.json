@@ -1,0 +1,856 @@
+{
+  "album_items": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "image_url": {
+        "nullable": false,
+        "type": "VARCHAR(512)"
+      },
+      "metadata": {
+        "nullable": true,
+        "type": "JSON"
+      },
+      "output_id": {
+        "nullable": true,
+        "type": "VARCHAR(36)"
+      },
+      "project_id": {
+        "nullable": true,
+        "type": "VARCHAR(36)"
+      },
+      "recipe": {
+        "nullable": true,
+        "type": "JSON"
+      },
+      "user_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      }
+    },
+    "indexes": {
+      "ix_album_items_image_url": {
+        "columns": [
+          "image_url"
+        ],
+        "unique": false
+      },
+      "ix_album_items_project_id": {
+        "columns": [
+          "project_id"
+        ],
+        "unique": false
+      },
+      "ix_album_items_user_id": {
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "audit_counters": {
+    "columns": {
+      "key": {
+        "nullable": false,
+        "type": "VARCHAR(120)"
+      },
+      "updated_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "value": {
+        "nullable": false,
+        "type": "INTEGER"
+      }
+    },
+    "indexes": {},
+    "primary_key": [
+      "key"
+    ]
+  },
+  "auth_login_failures": {
+    "columns": {
+      "client_ip": {
+        "nullable": false,
+        "type": "VARCHAR(64)"
+      },
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "email": {
+        "nullable": false,
+        "type": "VARCHAR(320)"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      }
+    },
+    "indexes": {
+      "ix_auth_login_failures_client_ip": {
+        "columns": [
+          "client_ip"
+        ],
+        "unique": false
+      },
+      "ix_auth_login_failures_created_at": {
+        "columns": [
+          "created_at"
+        ],
+        "unique": false
+      },
+      "ix_auth_login_failures_email": {
+        "columns": [
+          "email"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "auth_sessions": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "created_ip": {
+        "nullable": false,
+        "type": "VARCHAR(64)"
+      },
+      "expires_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "revoked_at": {
+        "nullable": true,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "session_token_hash": {
+        "nullable": false,
+        "type": "VARCHAR(255)"
+      },
+      "user_agent": {
+        "nullable": true,
+        "type": "VARCHAR(512)"
+      },
+      "user_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      }
+    },
+    "indexes": {
+      "ix_auth_sessions_expires_at": {
+        "columns": [
+          "expires_at"
+        ],
+        "unique": false
+      },
+      "ix_auth_sessions_session_token_hash": {
+        "columns": [
+          "session_token_hash"
+        ],
+        "unique": true
+      },
+      "ix_auth_sessions_user_id": {
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "email_verification_codes": {
+    "columns": {
+      "attempt_count": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "code_hash": {
+        "nullable": false,
+        "type": "VARCHAR(255)"
+      },
+      "consumed_at": {
+        "nullable": true,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "email": {
+        "nullable": false,
+        "type": "VARCHAR(320)"
+      },
+      "expires_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "purpose": {
+        "nullable": false,
+        "type": "verificationpurpose"
+      },
+      "send_ip": {
+        "nullable": false,
+        "type": "VARCHAR(64)"
+      }
+    },
+    "indexes": {
+      "ix_email_verification_codes_email": {
+        "columns": [
+          "email"
+        ],
+        "unique": false
+      },
+      "ix_email_verification_codes_expires_at": {
+        "columns": [
+          "expires_at"
+        ],
+        "unique": false
+      },
+      "ix_email_verification_codes_purpose": {
+        "columns": [
+          "purpose"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "generation_events": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "job_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "message": {
+        "nullable": false,
+        "type": "TEXT"
+      },
+      "payload": {
+        "nullable": false,
+        "type": "JSON"
+      },
+      "progress": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "sequence": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "type": {
+        "nullable": false,
+        "type": "VARCHAR(80)"
+      }
+    },
+    "indexes": {
+      "ix_generation_events_job_id": {
+        "columns": [
+          "job_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "generation_jobs": {
+    "columns": {
+      "accepted_output_index": {
+        "nullable": true,
+        "type": "INTEGER"
+      },
+      "character_session_id": {
+        "nullable": false,
+        "type": "VARCHAR(160)"
+      },
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "error_message": {
+        "nullable": true,
+        "type": "TEXT"
+      },
+      "expected_output_count": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "generation_mode": {
+        "nullable": false,
+        "type": "VARCHAR(80)"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "phase_label": {
+        "nullable": false,
+        "type": "VARCHAR(200)"
+      },
+      "progress": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "project_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "prompt_payload": {
+        "nullable": false,
+        "type": "JSON"
+      },
+      "provider": {
+        "nullable": false,
+        "type": "VARCHAR(40)"
+      },
+      "queue_position": {
+        "nullable": true,
+        "type": "INTEGER"
+      },
+      "runtime_status": {
+        "nullable": false,
+        "type": "VARCHAR(80)"
+      },
+      "status": {
+        "nullable": false,
+        "type": "jobstatus"
+      },
+      "stop_requested": {
+        "nullable": false,
+        "type": "BOOLEAN"
+      },
+      "token_usage": {
+        "nullable": true,
+        "type": "JSON"
+      },
+      "updated_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "user_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      }
+    },
+    "indexes": {
+      "ix_generation_jobs_character_session_id": {
+        "columns": [
+          "character_session_id"
+        ],
+        "unique": false
+      },
+      "ix_generation_jobs_project_id": {
+        "columns": [
+          "project_id"
+        ],
+        "unique": false
+      },
+      "ix_generation_jobs_runtime_status": {
+        "columns": [
+          "runtime_status"
+        ],
+        "unique": false
+      },
+      "ix_generation_jobs_user_id": {
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "generation_outputs": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "height": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "image_url": {
+        "nullable": false,
+        "type": "VARCHAR(512)"
+      },
+      "index": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "job_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "landmarks": {
+        "nullable": true,
+        "type": "JSON"
+      },
+      "object_key": {
+        "nullable": false,
+        "type": "VARCHAR(512)"
+      },
+      "width": {
+        "nullable": false,
+        "type": "INTEGER"
+      }
+    },
+    "indexes": {
+      "ix_generation_outputs_job_id": {
+        "columns": [
+          "job_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "project_drafts": {
+    "columns": {
+      "data": {
+        "nullable": false,
+        "type": "JSON"
+      },
+      "project_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "updated_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      }
+    },
+    "indexes": {},
+    "primary_key": [
+      "project_id"
+    ]
+  },
+  "project_references": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "height": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "kind": {
+        "nullable": false,
+        "type": "VARCHAR(32)"
+      },
+      "mime_type": {
+        "nullable": false,
+        "type": "VARCHAR(80)"
+      },
+      "object_key": {
+        "nullable": false,
+        "type": "VARCHAR(512)"
+      },
+      "project_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "width": {
+        "nullable": false,
+        "type": "INTEGER"
+      }
+    },
+    "indexes": {
+      "ix_project_references_project_id": {
+        "columns": [
+          "project_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "projects": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "name": {
+        "nullable": false,
+        "type": "VARCHAR(120)"
+      },
+      "updated_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "user_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      }
+    },
+    "indexes": {
+      "ix_projects_user_id": {
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "prompt_chips": {
+    "columns": {
+      "category": {
+        "nullable": false,
+        "type": "VARCHAR(64)"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(64)"
+      },
+      "is_active": {
+        "nullable": false,
+        "type": "BOOLEAN"
+      },
+      "label": {
+        "nullable": false,
+        "type": "VARCHAR(120)"
+      },
+      "sort_order": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "text": {
+        "nullable": false,
+        "type": "TEXT"
+      }
+    },
+    "indexes": {
+      "ix_prompt_chips_category": {
+        "columns": [
+          "category"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "provider_usage_records": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "error_code": {
+        "nullable": true,
+        "type": "VARCHAR(120)"
+      },
+      "generated_images": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "input_tokens": {
+        "nullable": true,
+        "type": "INTEGER"
+      },
+      "model": {
+        "nullable": false,
+        "type": "VARCHAR(160)"
+      },
+      "operation": {
+        "nullable": false,
+        "type": "VARCHAR(40)"
+      },
+      "output_tokens": {
+        "nullable": true,
+        "type": "INTEGER"
+      },
+      "provider": {
+        "nullable": false,
+        "type": "VARCHAR(40)"
+      },
+      "provider_preset": {
+        "nullable": false,
+        "type": "VARCHAR(40)"
+      },
+      "status": {
+        "nullable": false,
+        "type": "VARCHAR(20)"
+      },
+      "total_tokens": {
+        "nullable": true,
+        "type": "INTEGER"
+      }
+    },
+    "indexes": {
+      "ix_provider_usage_records_operation": {
+        "columns": [
+          "operation"
+        ],
+        "unique": false
+      },
+      "ix_provider_usage_records_provider": {
+        "columns": [
+          "provider"
+        ],
+        "unique": false
+      },
+      "ix_provider_usage_records_provider_preset": {
+        "columns": [
+          "provider_preset"
+        ],
+        "unique": false
+      },
+      "ix_provider_usage_records_status": {
+        "columns": [
+          "status"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "reference_assets": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "file_name": {
+        "nullable": false,
+        "type": "VARCHAR(255)"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "kind": {
+        "nullable": false,
+        "type": "VARCHAR(32)"
+      },
+      "mime_type": {
+        "nullable": false,
+        "type": "VARCHAR(80)"
+      },
+      "object_key": {
+        "nullable": false,
+        "type": "VARCHAR(512)"
+      },
+      "user_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      }
+    },
+    "indexes": {
+      "ix_reference_assets_object_key": {
+        "columns": [
+          "object_key"
+        ],
+        "unique": true
+      },
+      "ix_reference_assets_user_id": {
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "user_generation_quota_windows": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "updated_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "used_count": {
+        "nullable": false,
+        "type": "INTEGER"
+      },
+      "user_id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "window_start_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      }
+    },
+    "indexes": {
+      "ix_user_generation_quota_windows_user_id": {
+        "columns": [
+          "user_id"
+        ],
+        "unique": false
+      },
+      "ix_user_generation_quota_windows_window_start_at": {
+        "columns": [
+          "window_start_at"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  },
+  "users": {
+    "columns": {
+      "created_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "daily_generation_balance": {
+        "nullable": true,
+        "type": "INTEGER"
+      },
+      "daily_generation_limit_override": {
+        "nullable": true,
+        "type": "INTEGER"
+      },
+      "email": {
+        "nullable": false,
+        "type": "VARCHAR(320)"
+      },
+      "email_verified_at": {
+        "nullable": true,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "generation_quality_improvement_consent": {
+        "nullable": false,
+        "type": "BOOLEAN"
+      },
+      "generation_quality_improvement_consent_updated_at": {
+        "nullable": true,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "id": {
+        "nullable": false,
+        "type": "VARCHAR(36)"
+      },
+      "is_banned": {
+        "nullable": false,
+        "type": "BOOLEAN"
+      },
+      "last_login_at": {
+        "nullable": true,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "password_hash": {
+        "nullable": true,
+        "type": "VARCHAR(255)"
+      },
+      "role": {
+        "nullable": false,
+        "type": "userrole"
+      },
+      "terms_accepted_at": {
+        "nullable": true,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      },
+      "terms_version": {
+        "nullable": true,
+        "type": "VARCHAR(32)"
+      },
+      "updated_at": {
+        "nullable": false,
+        "type": "TIMESTAMP WITH TIME ZONE"
+      }
+    },
+    "indexes": {
+      "ix_users_email": {
+        "columns": [
+          "email"
+        ],
+        "unique": true
+      },
+      "ix_users_is_banned": {
+        "columns": [
+          "is_banned"
+        ],
+        "unique": false
+      },
+      "ix_users_role": {
+        "columns": [
+          "role"
+        ],
+        "unique": false
+      }
+    },
+    "primary_key": [
+      "id"
+    ]
+  }
+}

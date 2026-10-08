@@ -1,37 +1,36 @@
-from pathlib import Path
-import shutil
 import uuid
+from pathlib import Path
 
-import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
+
+from app.core.config import get_settings
 
 
-@pytest.fixture
-async def references_client(monkeypatch):
-    from app.core.config import get_settings
-    from app.main import create_app
-
-    reference_root = (
-        Path(__file__).resolve().parents[2]
-        / "runtime"
-        / "test-references"
-        / str(uuid.uuid4())
+async def register_user(async_client: AsyncClient) -> None:
+    email = f"reference-{uuid.uuid4().hex}@example.com"
+    await async_client.post(
+        "/api/auth/send-code",
+        json={"email": email, "purpose": "register"},
     )
-    monkeypatch.setenv("REFERENCE_UPLOAD_DIR", str(reference_root))
-    get_settings.cache_clear()
-    app = create_app()
+    response = await async_client.post(
+        "/api/auth/register",
+        json={
+            "terms_accepted": True,
+            "terms_version": get_settings().current_terms_version,
+            "email": email,
+            "code": "123456",
+            "password": "UserPassphrase7!",
+        },
+    )
+    assert response.status_code == 200
 
-    try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            yield client, reference_root
-    finally:
-        shutil.rmtree(reference_root, ignore_errors=True)
 
+async def test_reference_upload_stores_image_and_returns_object_key(
+    async_client: AsyncClient,
+):
+    await register_user(async_client)
 
-async def test_reference_upload_stores_image_and_returns_object_key(references_client):
-    client, reference_root = references_client
-
-    response = await client.post(
+    response = await async_client.post(
         "/api/references",
         data={"kind": "front"},
         files={"file": ("front.webp", b"webp-image", "image/webp")},
@@ -43,14 +42,16 @@ async def test_reference_upload_stores_image_and_returns_object_key(references_c
     assert payload["object_key"].startswith("references/")
     assert payload["object_key"].endswith("/front.webp")
 
-    stored_path = reference_root / Path(payload["object_key"]).relative_to("references")
+    stored_path = Path(get_settings().reference_upload_dir) / Path(
+        payload["object_key"]
+    ).relative_to("references")
     assert stored_path.read_bytes() == b"webp-image"
 
 
-async def test_reference_upload_rejects_non_image_files(references_client):
-    client, _ = references_client
+async def test_reference_upload_rejects_non_image_files(async_client: AsyncClient):
+    await register_user(async_client)
 
-    response = await client.post(
+    response = await async_client.post(
         "/api/references",
         data={"kind": "front"},
         files={"file": ("prompt.txt", b"not image", "text/plain")},

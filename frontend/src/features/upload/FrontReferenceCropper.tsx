@@ -24,16 +24,18 @@ export function FrontReferenceCropper({ file, onCancel, onConfirm }: FrontRefere
   const [error, setError] = useState<string | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
   const [strokes, setStrokes] = useState<LocalMaskStroke[]>([]);
   const [brushPreview, setBrushPreview] = useState<{ radius: number; x: number; y: number } | null>(null);
   const activeStrokeIdRef = useRef<string | null>(null);
+  const hasUserEditedMaskRef = useRef(false);
   const imageFrameRef = useRef<HTMLDivElement | null>(null);
 
   const imageWidth = image?.naturalWidth || image?.width || 1;
   const imageHeight = image?.naturalHeight || image?.height || 1;
   const imageAspectRatio = imageWidth / imageHeight;
-  const canConfirm = strokes.some((stroke) => stroke.mode === "brush" && stroke.points.length > 0) && !isBusy;
+  const hasMask = strokes.some((stroke) => stroke.mode === "brush" && stroke.points.length > 0);
+  const canConfirm = !isCropping;
 
   useEffect(() => {
     let cancelled = false;
@@ -42,19 +44,27 @@ export function FrontReferenceCropper({ file, onCancel, onConfirm }: FrontRefere
     setImage(null);
     setStrokes([]);
     setError(null);
-    setIsBusy(true);
+    setIsCropping(false);
+    hasUserEditedMaskRef.current = false;
 
     void loadImageFromFile(file)
       .then(async (loadedImage) => {
         if (cancelled) return;
         setImage(loadedImage);
-        const detection = await detectAnimeFaceBox(loadedImage);
+        let detection: Awaited<ReturnType<typeof detectAnimeFaceBox>> = null;
+        try {
+          detection = await detectAnimeFaceBox(loadedImage);
+        } catch (detectError) {
+          console.warn("Front reference face detection failed", detectError);
+        }
         if (cancelled) return;
         const width = loadedImage.naturalWidth || loadedImage.width || 1;
         const height = loadedImage.naturalHeight || loadedImage.height || 1;
         if (detection && !detection.usedFallback && isReliableFaceBoxDetection(detection.box, width, height, detection.score)) {
-          setStrokes(createFaceBoxMaskStrokes(detection.box, width, height));
-        } else {
+          if (!hasUserEditedMaskRef.current) {
+            setStrokes(createFaceBoxMaskStrokes(detection.box, width, height));
+          }
+        } else if (!hasUserEditedMaskRef.current) {
           setStrokes([]);
           setError("未识别到头部，请手动涂出头部。");
         }
@@ -62,9 +72,6 @@ export function FrontReferenceCropper({ file, onCancel, onConfirm }: FrontRefere
       .catch((loadError: unknown) => {
         if (cancelled) return;
         setError(loadError instanceof Error ? loadError.message : "头部图片读取失败。");
-      })
-      .finally(() => {
-        if (!cancelled) setIsBusy(false);
       });
 
     return () => {
@@ -88,6 +95,7 @@ export function FrontReferenceCropper({ file, onCancel, onConfirm }: FrontRefere
     event.currentTarget.setPointerCapture?.(event.pointerId);
     const id = `front-mask-${Date.now()}-${strokes.length}`;
     activeStrokeIdRef.current = id;
+    hasUserEditedMaskRef.current = true;
     setBrushPreview({ radius: brushRadius, ...point });
     setStrokes((current) => [
       ...current,
@@ -118,14 +126,14 @@ export function FrontReferenceCropper({ file, onCancel, onConfirm }: FrontRefere
 
   async function confirmCrop() {
     if (!canConfirm) return;
-    setIsBusy(true);
+    setIsCropping(true);
     setError(null);
     try {
-      onConfirm(await cropImageFileWithMask(file, strokes));
+      onConfirm(hasMask ? await cropImageFileWithMask(file, strokes) : file);
     } catch (cropError: unknown) {
       setError(cropError instanceof Error ? cropError.message : "头部裁剪失败。");
     } finally {
-      setIsBusy(false);
+      setIsCropping(false);
     }
   }
 
@@ -177,7 +185,7 @@ export function FrontReferenceCropper({ file, onCancel, onConfirm }: FrontRefere
               data-testid="front-reference-crop-confirm"
               disabled={!canConfirm}
               leftSection={<IconCheck size={16} />}
-              loading={isBusy}
+              loading={isCropping}
               onClick={() => void confirmCrop()}
               size="sm"
               variant="filled"
@@ -255,7 +263,15 @@ export function FrontReferenceCropper({ file, onCancel, onConfirm }: FrontRefere
           >
             橡皮
           </Button>
-          <Button leftSection={<IconTrash size={16} />} onClick={() => setStrokes([])} size="xs" variant="light">
+          <Button
+            leftSection={<IconTrash size={16} />}
+            onClick={() => {
+              hasUserEditedMaskRef.current = true;
+              setStrokes([]);
+            }}
+            size="xs"
+            variant="light"
+          >
             清空
           </Button>
           <Text c="dimmed" size="sm">

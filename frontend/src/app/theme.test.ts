@@ -10,6 +10,8 @@ describe("kigTheme", () => {
 
   it("sets hard-edged Material UI defaults", () => {
     expect(kigTheme.shape.borderRadius).toBe(0);
+    expect(kigTheme.typography.fontFamily).toBe("var(--kb-font-family)");
+    expect(kigTheme.typography.fontSize).toBe(15);
     expect(kigTheme.components?.MuiButton?.defaultProps).toMatchObject({
       disableElevation: true,
     });

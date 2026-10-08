@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateGenerationDurationMs } from "./generationTiming";
+import { estimateGenerationDurationMs, estimateGenerationQueueWaitMs } from "./generationTiming";
 
 describe("generationTiming", () => {
   it("falls back to the one-image benchmark when local history is not enough", () => {
@@ -60,5 +60,13 @@ describe("generationTiming", () => {
         { expectedOutputCount: 1, generationMode: "front_design" },
       ),
     ).toBe(180_000);
+  });
+
+  it("estimates queue wait by parallel slots so later positions stay monotonic", () => {
+    expect(estimateGenerationQueueWaitMs(1, 300_000, 3)).toBe(0);
+    expect(estimateGenerationQueueWaitMs(2, 300_000, 3)).toBe(0);
+    expect(estimateGenerationQueueWaitMs(3, 300_000, 3)).toBe(0);
+    expect(estimateGenerationQueueWaitMs(4, 300_000, 3)).toBe(300_000);
+    expect(estimateGenerationQueueWaitMs(7, 300_000, 3)).toBe(600_000);
   });
 });

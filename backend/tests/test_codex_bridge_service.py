@@ -160,6 +160,8 @@ async def test_codex_bridge_runs_runner_and_returns_four_public_outputs(tmp_path
         if item == "--image"
     ]
     assert image_args == [product_file, reference_file]
+    assert command[command.index("-m") + 1] == "gpt-5.5"
+    assert command[command.index("-c") + 1] == "reasoning_effort=medium"
     assert (workspace / "prompt.md").read_text(encoding="utf-8") == (
         "compose four finished views"
     )

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from app.generation.schemas import DEFAULT_LOCALE, Locale
 
 _SAFE_ANALYSIS_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+MAX_DETAIL_CROPS = 6
 
 DetailKind = Literal[
     "hair",
@@ -292,7 +293,7 @@ def persist_detail_crops(
                 file_name = f"detail-{len(persisted) + 1}.webp"
                 destination = output_dir / file_name
                 cropped.save(destination, format="WEBP", quality=92)
-        except (OSError, ValueError, KeyError, UnidentifiedImageError) as exc:
+        except (FileNotFoundError, OSError, ValueError, KeyError, UnidentifiedImageError) as exc:
             warnings.append(f"Skipped crop {crop.id}: {exc}")
             continue
 
@@ -363,6 +364,13 @@ def filter_head_detail_analysis_result(
     for crop in result.crops:
         if _is_head_detail(crop.kind, "", crop.description):
             crops.append(crop)
+
+    if len(crops) > MAX_DETAIL_CROPS:
+        dropped = len(crops) - MAX_DETAIL_CROPS
+        crops = crops[:MAX_DETAIL_CROPS]
+        warnings.append(
+            f"Truncated {dropped} detail crop(s) to stay within the limit of {MAX_DETAIL_CROPS}."
+        )
 
     return DetailAnalysisProviderResult(
         features=[*user_requirement_features[:1], *features],

@@ -4,6 +4,7 @@ import {
   IconArrowForwardUp,
   IconBug,
   IconDeviceFloppy,
+  IconDownload,
   IconEye,
   IconEyeOff,
   IconMaximize,
@@ -14,6 +15,8 @@ import {
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
 
 export type EditorToolbarProps = {
+  canSave?: boolean;
+  saveLabel?: string;
   canRedo?: boolean;
   canUndo?: boolean;
   isComparingOriginal?: boolean;
@@ -39,6 +42,7 @@ export type EditorToolbarProps = {
   onResetAll?: () => void;
   onSecondaryRegenerate?: () => void | Promise<void>;
   onSave?: () => void;
+  onDownload?: () => void;
   onToggleLandmarkDebugMode?: () => void;
   onToggleLandmarks?: () => void;
   onUndo?: () => void;
@@ -46,6 +50,8 @@ export type EditorToolbarProps = {
 };
 
 export function EditorToolbar({
+  canSave = true,
+  saveLabel = "保存",
   canRedo = false,
   canUndo = false,
   isComparingOriginal = false,
@@ -71,6 +77,7 @@ export function EditorToolbar({
   onResetAll,
   onSecondaryRegenerate,
   onSave,
+  onDownload,
   onToggleLandmarkDebugMode,
   onToggleLandmarks,
   onUndo,
@@ -163,14 +170,18 @@ export function EditorToolbar({
             <Button
               color="gray"
               data-testid="editor-save"
+                disabled={!canSave}
               leftSection={<IconDeviceFloppy size={16} />}
               onClick={onSave}
               size="sm"
               style={{ whiteSpace: "nowrap" }}
               variant="light"
             >
-              保存
+              {saveLabel}
             </Button>
+            {onDownload ? <Button color="gray" data-testid="editor-download" disabled={!canSave}
+              leftSection={<IconDownload size={16} />} onClick={onDownload} size="sm"
+              style={{ whiteSpace: "nowrap" }} variant="light">下载图片</Button> : null}
             {onClearImage ? (
               <Button
                 color="gray"
@@ -193,7 +204,7 @@ export function EditorToolbar({
               style={{ whiteSpace: "nowrap" }}
               variant="light"
             >
-              重置全部
+              重置图像调整
             </Button>
             {showFaceRecognition ? (
               <Button
@@ -225,7 +236,7 @@ export function EditorToolbar({
             flex: showPrimaryActions ? "0 0 auto" : "1 1 auto",
             minHeight: 42,
             minWidth: 0,
-            overflowX: isViewportOnlyToolbar ? "hidden" : shouldWrapToolbar ? "visible" : "hidden",
+            overflowX: isViewportOnlyToolbar ? "visible" : shouldWrapToolbar ? "visible" : "hidden",
             rowGap: shouldWrapToolbar ? 8 : undefined,
             width: "100%",
           }}

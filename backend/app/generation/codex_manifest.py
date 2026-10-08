@@ -2,6 +2,8 @@ import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
+from PIL import Image, UnidentifiedImageError
+
 from app.generation.provider import ProviderOutput
 
 
@@ -100,6 +102,10 @@ def _parse_output(
     if not isinstance(height, int) or isinstance(height, bool):
         raise ValueError("Codex manifest output height must be an integer")
 
+    actual_dimensions = read_image_dimensions(manifest_path.parent / relative_path)
+    if actual_dimensions is not None:
+        width, height = actual_dimensions
+
     prefix = public_prefix.rstrip("/")
     return ProviderOutput(
         index=index,
@@ -109,6 +115,16 @@ def _parse_output(
         height=height,
         landmarks=output.get("landmarks") if isinstance(output.get("landmarks"), dict) else None,
     )
+
+
+def read_image_dimensions(image_path: Path) -> tuple[int, int] | None:
+    if not image_path.is_file():
+        return None
+    try:
+        with Image.open(image_path) as image:
+            return image.width, image.height
+    except (OSError, UnidentifiedImageError):
+        return None
 
 
 def _default_dimensions(generation_mode: str | None) -> tuple[int, int]:

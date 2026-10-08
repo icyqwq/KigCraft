@@ -51,7 +51,7 @@ export function LocalMaskLayer({ brushPreview, height, strokes, width }: LocalMa
             cy={brushPreview.y * safeHeight}
             data-testid="local-mask-brush-preview"
             fill="none"
-            r={Math.max(1, brushPreview.radius)}
+            r={Math.max(0, brushPreview.radius)}
             stroke="rgba(20,184,166,0.95)"
             strokeDasharray="8 6"
             strokeWidth={2}
@@ -75,7 +75,7 @@ function renderStroke(stroke: LocalMaskStroke, safeWidth: number, safeHeight: nu
         cy={point.y * safeHeight}
         data-testid={`local-mask-stroke-${stroke.id}`}
         fill={color}
-        r={Math.max(1, stroke.radius)}
+        r={Math.max(0, stroke.radius)}
       />
     );
   }
@@ -90,7 +90,7 @@ function renderStroke(stroke: LocalMaskStroke, safeWidth: number, safeHeight: nu
       stroke={color}
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth={Math.max(1, stroke.radius * 2)}
+      strokeWidth={Math.max(0, stroke.radius * 2)}
     />
   );
 }

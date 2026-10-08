@@ -1,7 +1,18 @@
-import { IconEdit, IconEye, IconMoodSmile, IconSparkles, IconUserCircle, IconWand } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
+import { translateLiteralString } from "../../../i18n/literalTranslations";
+import {
+  IconEdit,
+  IconEye,
+  IconFeather,
+  IconMoodSmile,
+  IconRulerMeasure,
+  IconSparkles,
+  IconUserCircle,
+  IconWand,
+} from "@tabler/icons-react";
 import { Box, Button, Stack, Tab, Tabs, Text } from "../../../ui/mui";
 
-export type EditorTool = "annotation" | "face" | "eyes" | "mouth" | "liquify" | "local-generate";
+export type EditorTool = "annotation" | "proportion" | "face" | "eyes" | "brows" | "mouth" | "liquify" | "local-generate";
 
 type EditorToolConfig = {
   key: EditorTool;
@@ -11,8 +22,10 @@ type EditorToolConfig = {
 
 const editorTools: EditorToolConfig[] = [
   { key: "annotation", label: "标注", icon: IconEdit },
+  { key: "proportion", label: "比例", icon: IconRulerMeasure },
   { key: "face", label: "脸型", icon: IconUserCircle },
   { key: "eyes", label: "眼睛", icon: IconEye },
+  { key: "brows", label: "眉毛", icon: IconFeather },
   { key: "mouth", label: "嘴巴", icon: IconMoodSmile },
   { key: "liquify", label: "液化", icon: IconWand },
   { key: "local-generate", label: "局部生成", icon: IconSparkles },
@@ -26,6 +39,7 @@ export type EditorToolRailProps = {
 };
 
 export function EditorToolRail({ activeTool, orientation = "vertical", tools, onToolChange }: EditorToolRailProps) {
+  const {i18n}=useTranslation();
   const isHorizontal = orientation === "horizontal";
   const allowedTools = tools ? new Set(tools) : null;
   const visibleTools = editorTools.filter((tool) => !allowedTools || allowedTools.has(tool.key));
@@ -67,7 +81,7 @@ export function EditorToolRail({ activeTool, orientation = "vertical", tools, on
       {isHorizontal ? (
         <Box style={{ minWidth: 0 }}>
           <Tabs
-            aria-label="编辑工具"
+            aria-label={translateLiteralString("编辑工具",i18n.language)}
             onChange={(_event, value) => onToolChange(value as EditorTool)}
             sx={{
               minHeight: 58,
@@ -108,7 +122,7 @@ export function EditorToolRail({ activeTool, orientation = "vertical", tools, on
                   data-testid={`editor-tool-${tool.key}`}
                   icon={<ToolIcon size={17} />}
                   iconPosition="top"
-                  label={tool.label}
+                  label={translateLiteralString(tool.label,i18n.language)}
                   value={tool.key}
                 />
               );

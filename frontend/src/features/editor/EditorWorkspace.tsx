@@ -1,3 +1,15 @@
+import {useEditorCopy} from "./useEditorCopy";
+import "./local-generate.css";
+import "../../ui/spinner.css";
+import { ReferenceAttachments, type ReferenceAttachmentsHandle } from "../references/ReferenceAttachments";
+import type { ReferenceAttachment } from "../references/attachments";
+import { restoreLocalReferences } from "./drafts/localReferences";
+import type { EditorDraftContent } from "./drafts/types";
+import { bindMask, maskMatches, type MaskBinding } from "./core/maskBinding";
+import { EditorInputFlushContext } from "./core/inputFlush";
+import { EditorHistory, type EditorHistoryState } from "./core/history";
+import { anchorRecipeToImage, validImageCoordinates } from "./core/imageCoordinates";
+import { toastError } from "../../ui/toastStore";
 import { ActionIcon, Alert, Box, Button, Divider, Group, Paper, Slider, Stack, Text, Textarea, TextInput, Title, Tooltip, useMediaQuery } from "../../ui/mui";
 import {
   IconArrowBackUp,
@@ -25,6 +37,7 @@ import {
 import { AnnotationLayer } from "./components/AnnotationLayer";
 import { EditorToolbar } from "./components/EditorToolbar";
 import { EditorToolRail, type EditorTool } from "./components/EditorToolRail";
+import { BrowControls } from "./components/BrowControls";
 import { EyeControls } from "./components/EyeControls";
 import { FaceControls } from "./components/FaceControls";
 import { LocalMaskLayer } from "./components/LocalMaskLayer";
@@ -44,6 +57,7 @@ import {
   removeAnnotationMark,
   updateAnnotationMark,
   updateAnnotationNote,
+  updateBrowControl,
   updateEyeControl,
   updateFaceControl,
   updateLiquifyBrush,
@@ -53,17 +67,14 @@ import {
   updateMouthControl,
   type EditRecipe,
   type AnnotationMark,
+  type BrowControlKey,
   type EyeControlKey,
   type LiquifyStroke,
   type MouthControlKey,
 } from "./deformation/recipe";
 import { createDefaultLandmarks, type LandmarkPoint, type ManualLandmarkKey, type ManualLandmarks } from "./deformation/landmarks";
-import {
-  detectAnimeLandmarks,
-  warmupAnimeLandmarkDetector,
-  type AnimeLandmarkDebugBox,
-  type AnimeLandmarkDebugInfo,
-} from "./deformation/animeLandmarkDetector";
+import type {AnimeLandmarkDebugBox, AnimeLandmarkDebugInfo} from "./deformation/animeLandmarkDetector";
+import {detectEditorLandmarks} from "./detection/service";
 import { calculateRecipePreview, mountPixiStage, type PixiStageHandle } from "./deformation/pixiStage";
 import {
   exportLocalMaskBlob,
@@ -73,18 +84,33 @@ import {
   type LocalMaskMode,
   type LocalMaskStroke,
 } from "./localGeneration";
+import { embedEditRecipeInPng } from "./imageRecipeMetadata";
 
 export type { EditorLocalGeneratePayload, EditorLocalReferenceOption } from "./localGeneration";
 
 export type EditorWorkspaceProps = {
   availableTools?: EditorTool[];
+  initialLiquifySymmetry?: boolean;
   candidateIndex: number;
+  downloadOnSave?: boolean;
+  saveLabel?: string;
+  imageCoordinateEditing?: boolean;
+  /** Initial state belongs to this source; mount a new instance when changing sources. */
+  initialDraft?: EditorDraftContent;
+  imageSourceKey?: string;
+  onDraftChange?: (draft: EditorDraftContent) => void;
   imageHeight?: number;
   initialLandmarks?: ManualLandmarks | null;
   imageUrl?: string;
   imageWidth?: number;
   isRegenerating?: boolean;
   localReferenceOptions?: EditorLocalReferenceOption[];
+  localEditModes?: boolean;
+  localGenerationDisabled?: boolean;
+  /** Shown while a local generation is running: the controls lock and the panel explains why. */
+  localBusyLabel?: string | null;
+  localReferenceLimit?: number;
+  onUploadReference?: (file:File)=>Promise<{id:string}>;
   recipe?: EditRecipe;
   regenerateLabel?: string;
   secondaryRegenerateLabel?: string;
@@ -110,6 +136,7 @@ export type EditorRegeneratePayload = {
 };
 
 export type EditorImageSavePayload = {
+  draftSnapshot?: EditorDraftContent;
   annotationPrompt: string;
   fileName: string;
   imageBlob: Blob;
@@ -121,13 +148,21 @@ const toolDetails: Partial<Record<EditorTool, { description: string; title: stri
     title: "标注",
     description: "圈选需要保留、修正或重点观察的区域。",
   },
+  proportion: {
+    title: "比例",
+    description: "调整脸长和中庭，会改变五官之间的距离。",
+  },
   face: {
     title: "脸型",
-    description: "调整脸宽、下颌、下巴和 V 脸方向。",
+    description: "只调整脸部轮廓，五官位置保持不变。",
   },
   eyes: {
     title: "眼睛",
-    description: "调整眼睛大小、高度、宽度、距离、上下位置和倾斜角度。",
+    description: "调整眼睛大小、上下、眼高、长度、眼距、眼睑、眼瞳、眼尾和倾斜。",
+  },
+  brows: {
+    title: "眉毛",
+    description: "调整眉毛上下、粗细、长短、间距、倾斜和眉峰。",
   },
   mouth: {
     title: "嘴巴",
@@ -143,25 +178,20 @@ const defaultBrushRadius = 72;
 const defaultLiquifyScaleAmount = 0;
 const defaultLiquifyWarpStrength = 0.2;
 const defaultLiquifyToolMode: LiquifyToolMode = "warp";
-const defaultEditorTools: EditorTool[] = ["annotation", "face", "eyes", "mouth", "liquify", "local-generate"];
-const minEditorZoom = 0.4;
-const maxEditorZoom = 2.2;
+const defaultEditorTools: EditorTool[] = [
+  "annotation", "proportion", "face", "eyes", "brows", "mouth", "liquify", "local-generate",
+];
+const landmarkTools = new Set<EditorTool>(["proportion", "face", "eyes", "brows", "mouth"]);
 const minLiquifySymmetryAxis = 0.35;
 const maxLiquifySymmetryAxis = 0.65;
+const minEditorZoom = 0.4;
+const maxEditorZoom = 2.2;
 const touchLongPressMs = 560;
 const touchMoveTolerance = 10;
 
-type LiquifyHistoryEntry = {
-  after: LiquifyStroke[];
-  before: LiquifyStroke[];
-  key?: string;
-};
-
-type AnnotationHistoryEntry = {
-  after: AnnotationMark[];
-  before: AnnotationMark[];
-  key?: string;
-};
+function clampLiquifySymmetryAxis(value: number) {
+  return Math.min(maxLiquifySymmetryAxis, Math.max(minLiquifySymmetryAxis, Number(value.toFixed(4))));
+}
 
 type ViewportRect = {
   height: number;
@@ -179,8 +209,15 @@ type StagePointerPoint = {
 };
 
 export type EditorWorkspaceHandle = {
+  captureDraft: () => EditorDraftContent;
+  captureProjectDraft: () => EditorDraftContent;
+  captureForAdoption: () => Promise<EditorImageSavePayload>;
+  markReferenceUploaded: (key:string,file:File,assetId:string)=>void;
+  markReferenceUploadFailure: (key:string,file:File)=>void;
   regenerate: () => Promise<void>;
   secondaryRegenerate: () => Promise<void>;
+  /** Same as pressing the in-editor save control; used by the workspace header "save and return". */
+  save: () => Promise<void>;
 };
 type PendingTouchAction = {
   clientX: number;
@@ -201,9 +238,6 @@ type ViewportGesture = {
 
 function clampEditorZoom(value: number) {
   return Math.min(maxEditorZoom, Math.max(minEditorZoom, Number(value.toFixed(2))));
-}
-function clampLiquifySymmetryAxis(value: number) {
-  return Math.min(maxLiquifySymmetryAxis, Math.max(minLiquifySymmetryAxis, Number(value.toFixed(4))));
 }
 function recipesMatch(left: EditRecipe, right: EditRecipe) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -291,13 +325,25 @@ function loadBlobImage(blob: Blob): Promise<HTMLImageElement> {
 
 export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspaceProps>(function EditorWorkspace({
   availableTools,
+  initialLiquifySymmetry = true,
   candidateIndex,
+  downloadOnSave = true,
+  saveLabel,
+  imageCoordinateEditing = false,
+  initialDraft,
+  imageSourceKey,
+  onDraftChange,
   imageHeight,
   initialLandmarks,
   imageUrl,
   imageWidth,
   isRegenerating = false,
   localReferenceOptions = [],
+  localEditModes = false,
+  localGenerationDisabled = false,
+  localBusyLabel = null,
+  localReferenceLimit = 20,
+  onUploadReference,
   recipe: controlledRecipe,
   regenerateLabel,
   secondaryRegenerateLabel,
@@ -309,15 +355,16 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   onSecondaryRegenerate,
   onSave,
 }: EditorWorkspaceProps, ref) {
+  const {c} = useEditorCopy();
   const isMobileEditor = useMediaQuery("(max-width: 768px)", false);
   const [activeTool, setActiveTool] = useState<EditorTool>("annotation");
-  const [recipe, setRecipe] = useState(() => normalizeEditRecipe(controlledRecipe ?? createEmptyRecipe()));
+  const [recipe, setRecipe] = useState(() => normalizeEditRecipe(initialDraft?.recipe ?? controlledRecipe ?? createEmptyRecipe()));
   const [liquifyToolMode, setLiquifyToolMode] = useState<LiquifyToolMode>(defaultLiquifyToolMode);
   const [brushRadius, setBrushRadius] = useState(defaultBrushRadius);
   const [liquifyScaleAmount, setLiquifyScaleAmount] = useState(defaultLiquifyScaleAmount);
-  const [liquifyWarpStrength, setLiquifyWarpStrength] = useState(defaultLiquifyWarpStrength);
-  const [liquifySymmetryEnabled, setLiquifySymmetryEnabled] = useState(true);
+  const [liquifySymmetryEnabled, setLiquifySymmetryEnabled] = useState(initialLiquifySymmetry);
   const [manualLiquifySymmetryAxis, setManualLiquifySymmetryAxis] = useState<number | null>(null);
+  const [liquifyWarpStrength, setLiquifyWarpStrength] = useState(defaultLiquifyWarpStrength);
   const [liquifyBrushPreview, setLiquifyBrushPreview] = useState<{
     active: boolean;
     mode: LiquifyToolMode;
@@ -346,49 +393,51 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   const [annotationColor, setAnnotationColor] = useState("#ef4444");
   const [annotationFontSize, setAnnotationFontSize] = useState(24);
   const [selectedLandmarkKey, setSelectedLandmarkKey] = useState<ManualLandmarkKey | null>(null);
-  const [extraReferenceFile, setExtraReferenceFile] = useState<File | null>(null);
+  const [extraReferenceFile, setExtraReferenceFile] = useState<File | null>(initialDraft?.extraReferenceFile ?? null);
   const [extraReferencePreviewUrl, setExtraReferencePreviewUrl] = useState<string | null>(null);
-  const [extraReferenceDescription, setExtraReferenceDescription] = useState("");
+  const [extraReferenceDescription, setExtraReferenceDescription] = useState(initialDraft?.extraReferenceDescription ?? "");
   const [localMaskMode, setLocalMaskMode] = useState<LocalMaskMode>("brush");
   const [localMaskRadius, setLocalMaskRadius] = useState(36);
-  const [localMaskStrokes, setLocalMaskStrokes] = useState<LocalMaskStroke[]>([]);
+  const [localMaskStrokes, setLocalMaskStrokes] = useState<LocalMaskStroke[]>(initialDraft?.maskStrokes ?? []);
+  const [localMaskBinding, setLocalMaskBinding] = useState<MaskBinding | undefined>(initialDraft?.maskBinding);
+  const [preparingLocal, setPreparingLocal] = useState(false);
+  const localPreparationRef = useRef(false);
+  const editorLiveRef = useRef(true);
+  useEffect(() => { editorLiveRef.current = true; return () => { editorLiveRef.current = false; }; }, []);
   const [localMaskBrushPreview, setLocalMaskBrushPreview] = useState<{ radius: number; x: number; y: number } | null>(null);
-  const [localEditNote, setLocalEditNote] = useState("");
-  const [selectedLocalReferenceKeys, setSelectedLocalReferenceKeys] = useState<string[]>([]);
-  const [localUploadedReferenceFile, setLocalUploadedReferenceFile] = useState<File | null>(null);
-  const [localUploadedReferenceDescription, setLocalUploadedReferenceDescription] = useState("");
+  const [localEditMode, setLocalEditMode] = useState<"preserve" | "lock_outside" | undefined>(initialDraft?.localEditMode);
+  const [localEditNote, setLocalEditNote] = useState(initialDraft?.localEditNote ?? "");
+  const [localReferences, setLocalReferences] = useState<ReferenceAttachment[]>(()=>restoreLocalReferences(initialDraft,localReferenceOptions));
+  const localReferencesRef = useRef(localReferences);
+  const referenceAttachments = useRef<ReferenceAttachmentsHandle>(null);
+  const referencesEdited = useRef(initialDraft?.localReferences !== undefined);
   const [localGenerateError, setLocalGenerateError] = useState<string | null>(null);
   const [saveMenuPosition, setSaveMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [pixiHostElement, setPixiHostElement] = useState<HTMLDivElement | null>(null);
   const [pixiStageVersion, setPixiStageVersion] = useState(0);
+  const [saveError, setSaveError] = useState("");
+  const [isSavingImage, setIsSavingImage] = useState(false);
+  const saveInFlight = useRef(false);
   const [pixiVisualReady, setPixiVisualReady] = useState(false);
   const [pixiStageFailed, setPixiStageFailed] = useState(false);
-  const [liquifyHistoryAvailability, setLiquifyHistoryAvailability] = useState({
-    canRedo: false,
-    canUndo: false,
-  });
-  const [annotationHistoryAvailability, setAnnotationHistoryAvailability] = useState({
-    canRedo: false,
-    canUndo: false,
-  });
+  const [historyAvailability, setHistoryAvailability] = useState({ canRedo: false, canUndo: false });
+  const historyRef = useRef<EditorHistory | null>(null);
+  if (!historyRef.current) historyRef.current = new EditorHistory({ recipe, maskStrokes: initialDraft?.maskStrokes ?? [], maskBinding: initialDraft?.maskBinding });
+  const inputFlushersRef = useRef(new Set<() => void>());
+  const editorRootRef = useRef<HTMLElement | null>(null);
   const baseImageRef = useRef<HTMLImageElement | null>(null);
   const extraReferenceInputRef = useRef<HTMLInputElement | null>(null);
   const imageViewportRef = useRef<HTMLDivElement | null>(null);
   const localMaskActiveStrokeIdRef = useRef<string | null>(null);
-  const localReferenceInputRef = useRef<HTMLInputElement | null>(null);
   const pixiStageRef = useRef<PixiStageHandle | null>(null);
   const pixiRecipeFrameRef = useRef<number | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const latestImageUrlRef = useRef(imageUrl);
   const latestRecipeRef = useRef(recipe);
+  const latestPreviewRecipeRef = useRef<EditRecipe>(recipe);
   const landmarkDetectionRunRef = useRef(0);
-  const landmarkFallbackRef = useRef(false);
-  const undoStackRef = useRef<LiquifyHistoryEntry[]>([]);
-  const redoStackRef = useRef<LiquifyHistoryEntry[]>([]);
-  const activeHistoryKeyRef = useRef<string | null>(null);
-  const annotationUndoStackRef = useRef<AnnotationHistoryEntry[]>([]);
-  const annotationRedoStackRef = useRef<AnnotationHistoryEntry[]>([]);
-  const activeAnnotationHistoryKeyRef = useRef<string | null>(null);
+  const landmarkAbortRef = useRef<AbortController | null>(null);
+  const autoLandmarkAttemptedRef = useRef(false);
   const activeScaleEditIndexRef = useRef<number | null>(null);
   const liquifyOperationIdRef = useRef(0);
   const activeLiquifyHistoryKeyRef = useRef<string | null>(null);
@@ -453,17 +502,22 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   const enabledToolSet = useMemo(() => new Set(enabledTools), [enabledTools]);
   const activeToolDetail = toolDetails[activeTool] ?? {
     title: "局部生成",
-    description: "涂抹要修改的区域，提交给 AI 只重做这一块。",
+    description: c("localDescription"),
   };
-  const canShowLandmarkToggle = enabledToolSet.has("face") || enabledToolSet.has("eyes") || enabledToolSet.has("mouth");
+  const canShowLandmarkToggle = enabledTools.some((tool) => landmarkTools.has(tool));
+  const needsLandmarkDetection = canShowLandmarkToggle && landmarkTools.has(activeTool);
   const effectiveShowLandmarks = canShowLandmarkToggle && showLandmarkControls && !temporarilyHideLandmarks;
   const zoomPercent = Math.round(zoom * 100);
-  const canUndo = liquifyHistoryAvailability.canUndo;
-  const canRedo = liquifyHistoryAvailability.canRedo;
-  const canUndoAnnotation = annotationHistoryAvailability.canUndo;
-  const canRedoAnnotation = annotationHistoryAvailability.canRedo;
+  const canUndo = historyAvailability.canUndo;
+  const canRedo = historyAvailability.canRedo;
+  const canUndoAnnotation = historyAvailability.canUndo;
+  const canRedoAnnotation = historyAvailability.canRedo;
   const stageWidth = detectedImageSize?.width ?? (imageWidth && imageWidth > 0 ? imageWidth : 960);
   const stageHeight = detectedImageSize?.height ?? (imageHeight && imageHeight > 0 ? imageHeight : 720);
+  const maskHasPaint = useMemo(() => hasLocalMaskPaint(localMaskStrokes, stageWidth, stageHeight),
+    [localMaskStrokes, stageWidth, stageHeight]);
+  const maskNeedsConfirmation = localMaskStrokes.length > 0 &&
+    !maskMatches(localMaskBinding, recipe, imageSourceKey ?? imageUrl ?? "", stageWidth, stageHeight);
   const stageAspectRatio = `${Math.max(1, stageWidth)} / ${Math.max(1, stageHeight)}`;
   const imageViewportRect = calculateContainViewport(
     stageViewportSize.width,
@@ -472,6 +526,13 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     stageHeight,
   );
   const imageViewportReady = Boolean(detectedImageSize) && imageViewportRect.width > 0 && imageViewportRect.height > 0;
+  const imageCoordinatesReady = !imageCoordinateEditing || Boolean(
+    validImageCoordinates(recipe.imageCoordinates) && recipe.imageCoordinates.width === stageWidth &&
+    recipe.imageCoordinates.height === stageHeight,
+  );
+  const imageToPreviewScale = imageViewportRect.width / stageWidth;
+  const effectToPreviewScale = recipe.imageCoordinates
+    ? recipe.imageCoordinates.effectScale * imageToPreviewScale : 1;
   const hasImage = Boolean(imageUrl);
   const currentLandmarks = recipe.landmarks;
   const normalizedDebugFaceBox = landmarkDebugInfo
@@ -490,6 +551,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
         : recipe,
     [pendingScaleStroke, recipe],
   );
+  latestPreviewRecipeRef.current = previewRecipe;
   const automaticLiquifySymmetryAxis = useMemo(() => estimateLiquifySymmetryAxis(recipe), [recipe]);
   const liquifySymmetryAxis = clampLiquifySymmetryAxis(manualLiquifySymmetryAxis ?? automaticLiquifySymmetryAxis);
   const visibleLiquifyBrushPreview =
@@ -507,12 +569,17 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
             ? {
                 active: false,
                 mode: "scale" as const,
-                radius: pendingScaleStroke.radius,
+                radius: pendingScaleStroke.radius / (recipe.imageCoordinates?.effectScale ?? 1),
                 x: pendingScaleStroke.x,
                 y: pendingScaleStroke.y,
               }
             : null)
       : null;
+  const displayLiquifyBrushPreview = visibleLiquifyBrushPreview ? {
+    ...visibleLiquifyBrushPreview, radius: visibleLiquifyBrushPreview.radius * effectToPreviewScale,
+  } : null;
+  const displayLiquifyStrokes = recipe.imageCoordinates
+    ? recipe.liquify.map(stroke => ({ ...stroke, radius: stroke.radius * imageToPreviewScale })) : recipe.liquify;
   const recipePreview = calculateRecipePreview(previewRecipe);
   const fallbackPreviewTransform = [
     `translate(${recipePreview.imageOffset.x + recipePreview.eyeOffset.x}px, ${
@@ -582,7 +649,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
       .setImageUrl(imageUrl)
       .then(() => {
         if (cancelled) return;
-        stage.applyRecipe(previewRecipe);
+        stage.applyRecipe(latestPreviewRecipeRef.current);
         setPixiVisualReady(true);
       })
       .catch((error: unknown) => {
@@ -607,7 +674,11 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
 
     pixiRecipeFrameRef.current = window.requestAnimationFrame(() => {
       pixiRecipeFrameRef.current = null;
-      pixiStageRef.current?.applyRecipe(previewRecipe);
+      try { pixiStageRef.current?.applyRecipe(previewRecipe); }
+      catch (error) {
+        console.warn("Editor recipe cannot be rendered", error);
+        setPixiStageFailed(true); setPixiVisualReady(false);
+      }
     });
 
     return () => {
@@ -627,6 +698,13 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
       setRecipeWithoutHistory(nextRecipe);
     }
   }, [controlledRecipe]);
+
+  useEffect(() => {
+    if (!imageCoordinateEditing || !imageViewportReady || latestRecipeRef.current.imageCoordinates) return;
+    // Existing recipes have no historic viewport. Freeze their current visible interpretation once.
+    const effectScale = controlledRecipe ? stageWidth / imageViewportRect.width : Math.max(stageWidth, stageHeight) / 720;
+    setRecipeWithoutHistory(anchorRecipeToImage(latestRecipeRef.current, stageWidth, stageHeight, effectScale));
+  }, [imageCoordinateEditing, imageViewportReady, stageWidth, stageHeight, imageViewportRect.width, recipe.imageCoordinates]);
 
   useEffect(() => {
     if (enabledToolSet.has(activeTool)) return;
@@ -685,28 +763,24 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }, [imageUrl]);
 
   useEffect(() => {
-    if (!canShowLandmarkToggle) return;
+    if (initialDraft?.extraReferenceFile) setExtraReferencePreviewUrl(URL.createObjectURL(initialDraft.extraReferenceFile));
+  }, []);
 
-    let cancelled = false;
-    const warmup = () => {
-      if (cancelled) return;
-      void warmupAnimeLandmarkDetector();
+  function captureDraft(canonicalReferences = false): EditorDraftContent {
+    flushEditorInput();
+    return {
+      ...historyRef.current!.snapshot, localEditNote, ...referenceDraft(canonicalReferences), ...(localEditModes && localEditMode ? {localEditMode} : {}),
+      extraReferenceFile, extraReferenceDescription,
     };
-
-    if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(warmup, { timeout: 1500 });
-      return () => {
-        cancelled = true;
-        window.cancelIdleCallback(idleId);
-      };
-    }
-
-    const timeoutId = window.setTimeout(warmup, 300);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [canShowLandmarkToggle]);
+  }
+  // The callback receives all editable state. Viewport/tool preferences and undo stacks are not documents.
+  useEffect(() => {
+    onDraftChange?.({
+      recipe, maskStrokes: localMaskStrokes, maskBinding: localMaskBinding, localEditNote, ...referenceDraft(), ...(localEditModes && localEditMode ? {localEditMode} : {}),
+      extraReferenceFile, extraReferenceDescription,
+    });
+  }, [recipe, localMaskStrokes, localMaskBinding, localEditNote, localEditMode, localEditModes, localReferences,
+    extraReferenceFile, extraReferenceDescription, onDraftChange]);
 
   useEffect(() => {
     if (!extraReferencePreviewUrl) return;
@@ -725,7 +799,10 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }, [onRecipeChange, recipe]);
 
   useEffect(() => {
+    landmarkAbortRef.current?.abort();
+    autoLandmarkAttemptedRef.current = false;
     landmarkDetectionRunRef.current += 1;
+    setIsDetectingLandmarks(false);
     setDetectedImageSize(null);
     setImageLoadVersion(0);
     setLandmarkDebugInfo(null);
@@ -734,7 +811,8 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     setLiquifyBrushPreview(null);
     setScaleBrushPoint(null);
     setLocalMaskBrushPreview(null);
-    setLocalMaskStrokes([]);
+    setLocalMaskStrokes(initialDraft?.maskStrokes ?? []);
+    setLocalMaskBinding(initialDraft?.maskBinding);
     setIsScaleBrushDragging(false);
     setLiquifyScaleAmount(defaultLiquifyScaleAmount);
     setZoom(1);
@@ -746,14 +824,20 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     clearRecipeHistory();
     setRecipeWithoutHistory({
       ...latestRecipeRef.current,
-      landmarks: initialLandmarks ?? undefined,
+      landmarks: initialLandmarks ?? initialDraft?.recipe.landmarks ?? (imageCoordinateEditing ? controlledRecipe?.landmarks : undefined),
     });
-    landmarkFallbackRef.current = false;
+    return () => {
+      landmarkAbortRef.current?.abort();
+      landmarkDetectionRunRef.current += 1;
+    };
   }, [imageUrl]);
 
   useEffect(() => {
     if (!imageUrl || !initialLandmarks) return;
     if (JSON.stringify(latestRecipeRef.current.landmarks ?? null) === JSON.stringify(initialLandmarks)) return;
+    landmarkAbortRef.current?.abort();
+    landmarkDetectionRunRef.current += 1;
+    setIsDetectingLandmarks(false);
     setRecipeWithoutHistory(
       {
         ...latestRecipeRef.current,
@@ -761,36 +845,41 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
       },
       { notify: true },
     );
-    landmarkFallbackRef.current = false;
   }, [imageUrl, initialLandmarks]);
 
   useEffect(() => {
-    if (!imageUrl || !canShowLandmarkToggle || initialLandmarks || imageLoadVersion === 0) return;
-    if (latestRecipeRef.current.landmarks && !landmarkFallbackRef.current) return;
+    if (!imageUrl || !canShowLandmarkToggle || initialLandmarks || imageLoadVersion === 0 || autoLandmarkAttemptedRef.current) return;
+    // Landmarks saved before brows were detected still need the brow points.
+    if (latestRecipeRef.current.landmarks?.brows) return;
 
     const image = baseImageRef.current;
     if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
 
+    autoLandmarkAttemptedRef.current = true;
+    landmarkAbortRef.current?.abort();
+    const controller = new AbortController();
+    landmarkAbortRef.current = controller;
     const runId = ++landmarkDetectionRunRef.current;
     let cancelled = false;
     setIsDetectingLandmarks(true);
 
-    void detectAnimeLandmarks(image)
+    void detectEditorLandmarks(image, controller.signal)
       .then((detection) => {
         if (cancelled || runId !== landmarkDetectionRunRef.current) return;
         if (!detection) {
-          ensureFallbackLandmarks({ notify: true });
           return;
         }
-        if (latestRecipeRef.current.landmarks && !landmarkFallbackRef.current) return;
+        const existing = latestRecipeRef.current.landmarks;
+        if (existing?.brows) return;
 
         setSecondaryLandmarks(detection.details);
         setLandmarkDebugInfo(detection.debug);
-        landmarkFallbackRef.current = false;
+        if (existing && !detection.controls.brows) return;
         setRecipeWithoutHistory(
           {
             ...latestRecipeRef.current,
-            landmarks: detection.controls,
+            // Keep existing, possibly hand-placed landmarks and add only the detected brows.
+            landmarks: existing ? { ...existing, brows: detection.controls.brows } : detection.controls,
           },
           { notify: true },
         );
@@ -799,9 +888,8 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
         if (!cancelled && runId === landmarkDetectionRunRef.current) {
           setLandmarkDebugInfo(null);
           setSecondaryLandmarks([]);
-          ensureFallbackLandmarks({ notify: true });
         }
-        console.warn("Anime landmark detection failed", error);
+        if (!controller.signal.aborted) console.warn("Anime landmark detection failed", error);
       })
       .finally(() => {
         if (!cancelled && runId === landmarkDetectionRunRef.current) {
@@ -811,126 +899,97 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
 
     return () => {
       cancelled = true;
+      controller.abort();
       if (runId === landmarkDetectionRunRef.current) {
         setIsDetectingLandmarks(false);
       }
     };
   }, [canShowLandmarkToggle, imageLoadVersion, imageUrl, initialLandmarks]);
 
-  function syncLiquifyHistoryAvailability() {
-    setLiquifyHistoryAvailability({
-      canRedo: redoStackRef.current.length > 0,
-      canUndo: undoStackRef.current.length > 0,
-    });
-  }
-
-  function syncAnnotationHistoryAvailability() {
-    setAnnotationHistoryAvailability({
-      canRedo: annotationRedoStackRef.current.length > 0,
-      canUndo: annotationUndoStackRef.current.length > 0,
-    });
+  function syncHistoryAvailability() {
+    const history = historyRef.current!;
+    setHistoryAvailability({ canUndo: history.canUndo, canRedo: history.canRedo });
   }
 
   function clearRecipeHistory() {
-    undoStackRef.current = [];
-    redoStackRef.current = [];
-    activeHistoryKeyRef.current = null;
-    annotationUndoStackRef.current = [];
-    annotationRedoStackRef.current = [];
-    activeAnnotationHistoryKeyRef.current = null;
-    syncLiquifyHistoryAvailability();
-    syncAnnotationHistoryAvailability();
+    historyRef.current!.reset({ recipe: latestRecipeRef.current, maskStrokes: initialDraft?.maskStrokes ?? [], maskBinding: initialDraft?.maskBinding });
+    syncHistoryAvailability();
   }
 
   function setRecipeWithoutHistory(nextRecipe: EditRecipe, options: { notify?: boolean } = {}) {
+    historyRef.current!.rebaseRecipe(nextRecipe);
     latestRecipeRef.current = nextRecipe;
     shouldNotifyRecipeRef.current = Boolean(options.notify);
     setRecipe(nextRecipe);
   }
 
-  function recordLiquifyHistory(previousLiquify: LiquifyStroke[], nextLiquify: LiquifyStroke[], historyKey?: string) {
-    if (JSON.stringify(previousLiquify) === JSON.stringify(nextLiquify)) return;
-
-    if (historyKey && activeHistoryKeyRef.current === historyKey && undoStackRef.current.length > 0) {
-      const previousEntries = undoStackRef.current;
-      const lastEntry = previousEntries[previousEntries.length - 1];
-      undoStackRef.current = [...previousEntries.slice(0, -1), { ...lastEntry, after: nextLiquify }];
-      redoStackRef.current = [];
-      syncLiquifyHistoryAvailability();
-      return;
-    }
-
-    undoStackRef.current = [...undoStackRef.current, { after: nextLiquify, before: previousLiquify, key: historyKey }].slice(-100);
-    redoStackRef.current = [];
-    activeHistoryKeyRef.current = historyKey ?? null;
-    syncLiquifyHistoryAvailability();
+  function showHistoryState(state: EditorHistoryState) {
+    latestRecipeRef.current = state.recipe;
+    shouldNotifyRecipeRef.current = true;
+    setRecipe(state.recipe);
+    setLocalMaskStrokes(previous => JSON.stringify(previous) === JSON.stringify(state.maskStrokes) ? previous : state.maskStrokes);
+    setLocalMaskBinding(state.maskBinding);
+    setSelectedAnnotationId(id => state.recipe.annotations.some(mark => mark.id === id) ? id : null);
+    syncHistoryAvailability();
   }
 
-  function recordAnnotationHistory(
-    previousAnnotations: AnnotationMark[],
-    nextAnnotations: AnnotationMark[],
-    historyKey?: string,
-  ) {
-    if (JSON.stringify(previousAnnotations) === JSON.stringify(nextAnnotations)) return;
-
-    const before = previousAnnotations.map((annotation) => ({ ...annotation }));
-    const after = nextAnnotations.map((annotation) => ({ ...annotation }));
-
-    if (historyKey && activeAnnotationHistoryKeyRef.current === historyKey && annotationUndoStackRef.current.length > 0) {
-      const previousEntries = annotationUndoStackRef.current;
-      const lastEntry = previousEntries[previousEntries.length - 1];
-      annotationUndoStackRef.current = [...previousEntries.slice(0, -1), { ...lastEntry, after }];
-      annotationRedoStackRef.current = [];
-      syncAnnotationHistoryAvailability();
-      return;
-    }
-
-    annotationUndoStackRef.current = [...annotationUndoStackRef.current, { after, before, key: historyKey }].slice(-100);
-    annotationRedoStackRef.current = [];
-    activeAnnotationHistoryKeyRef.current = historyKey ?? null;
-    syncAnnotationHistoryAvailability();
+  function flushEditorInput() {
+    for (const flush of inputFlushersRef.current) flush();
+    commitHistoryGesture();
   }
+
+  function commitHistoryGesture() { historyRef.current!.commit(); syncHistoryAvailability(); }
+  function cancelHistoryGesture() { showHistoryState(historyRef.current!.cancel()); }
 
   function updateRecipe(
     updater: (currentRecipe: EditRecipe) => EditRecipe,
     options: { history?: "annotation" | "liquify"; historyKey?: string } = {},
   ) {
-    const currentRecipe = latestRecipeRef.current;
-    const nextRecipe = normalizeEditRecipe(updater(currentRecipe));
-    if (recipesMatch(nextRecipe, currentRecipe)) return;
-
-    if (options.history === "liquify") {
-      recordLiquifyHistory(currentRecipe.liquify, nextRecipe.liquify, options.historyKey);
-      activeAnnotationHistoryKeyRef.current = null;
-    } else if (options.history === "annotation") {
-      recordAnnotationHistory(currentRecipe.annotations, nextRecipe.annotations, options.historyKey);
-      activeHistoryKeyRef.current = null;
-    } else {
-      activeHistoryKeyRef.current = null;
-      activeAnnotationHistoryKeyRef.current = null;
-    }
-    setRecipeWithoutHistory(nextRecipe, { notify: true });
+    const requested = updater(latestRecipeRef.current);
+    const nextRecipe = normalizeEditRecipe(requested);
+    if (recipesMatch(nextRecipe, latestRecipeRef.current)) return;
+    const history = historyRef.current!;
+    // The recognised key points are shown once. Changing anything but the points themselves hides them
+    // so the result can be judged; the key-point button brings them back.
+    if (requested.landmarks === latestRecipeRef.current.landmarks) hideLandmarksAfterEdit();
+    history.apply({ ...history.snapshot, recipe: nextRecipe },
+      options.historyKey ?? (history.gestureKey?.startsWith("parameter:") ? history.gestureKey : undefined));
+    showHistoryState(history.snapshot);
   }
 
-  function setRecipeWithHistory(nextRecipe: EditRecipe) {
-    setRecipeWithoutHistory(normalizeEditRecipe(nextRecipe), { notify: true });
+  function hideLandmarksAfterEdit() {
+    setShowLandmarkControls(false);
+    setShowLandmarkHint(false);
   }
 
-  function ensureFallbackLandmarks(options: { notify?: boolean } = {}) {
-    if (latestRecipeRef.current.landmarks && !landmarkFallbackRef.current) {
-      setShowLandmarkControls(true);
-      return;
-    }
+  function updateMask(updater: (current: LocalMaskStroke[]) => LocalMaskStroke[], key?: string) {
+    const history = historyRef.current!;
+    const current = history.snapshot;
+    const strokes = updater(current.maskStrokes);
+    hideLandmarksAfterEdit();
+    history.apply({ ...current, maskStrokes: strokes, maskBinding: strokes.length === 0 ? undefined :
+      current.maskBinding ?? bindMask(current.recipe, imageSourceKey ?? imageUrl ?? "", stageWidth, stageHeight) }, key);
+    showHistoryState(history.snapshot);
+  }
 
-    landmarkFallbackRef.current = true;
+  function confirmMaskPosition() {
+    const history = historyRef.current!;
+    history.apply({ ...history.snapshot,
+      maskBinding: bindMask(latestRecipeRef.current, imageSourceKey ?? imageUrl ?? "", stageWidth, stageHeight) });
+    showHistoryState(history.snapshot);
+  }
+
+  function startManualCalibration() {
+    // The initiating button disappears after calibration; retain editor focus so
+    // keyboard undo applies to this instance rather than the surrounding page.
+    editorRootRef.current?.focus({preventScroll: true});
+    autoLandmarkAttemptedRef.current = true;
+    landmarkAbortRef.current?.abort();
+    landmarkDetectionRunRef.current += 1;
+    setIsDetectingLandmarks(false);
     setShowLandmarkControls(true);
-    setRecipeWithoutHistory(
-      {
-        ...latestRecipeRef.current,
-        landmarks: createDefaultLandmarks(1, 1),
-      },
-      { notify: options.notify },
-    );
+    setShowLandmarkHint(true);
+    updateRecipe(current => ({...current, landmarks: createDefaultLandmarks(1, 1)}));
   }
 
   function clearTransientEditState() {
@@ -946,83 +1005,33 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }
 
   function handleUndo() {
-    const historyEntry = undoStackRef.current.at(-1);
-    if (!historyEntry) return;
-
-    undoStackRef.current = undoStackRef.current.slice(0, -1);
-    redoStackRef.current = [...redoStackRef.current, historyEntry].slice(-100);
-    activeHistoryKeyRef.current = null;
+    flushEditorInput();
     clearTransientEditState();
-    setRecipeWithoutHistory({ ...latestRecipeRef.current, liquify: historyEntry.before }, { notify: true });
-    syncLiquifyHistoryAvailability();
+    showHistoryState(historyRef.current!.undo());
   }
-
   function handleRedo() {
-    const historyEntry = redoStackRef.current.at(-1);
-    if (!historyEntry) return;
-
-    redoStackRef.current = redoStackRef.current.slice(0, -1);
-    undoStackRef.current = [...undoStackRef.current, historyEntry].slice(-100);
-    activeHistoryKeyRef.current = null;
+    flushEditorInput();
     clearTransientEditState();
-    setRecipeWithoutHistory({ ...latestRecipeRef.current, liquify: historyEntry.after }, { notify: true });
-    syncLiquifyHistoryAvailability();
+    showHistoryState(historyRef.current!.redo());
   }
-
-  function handleAnnotationUndo() {
-    const historyEntry = annotationUndoStackRef.current.at(-1);
-    if (!historyEntry) return;
-
-    annotationUndoStackRef.current = annotationUndoStackRef.current.slice(0, -1);
-    annotationRedoStackRef.current = [...annotationRedoStackRef.current, historyEntry].slice(-100);
-    activeAnnotationHistoryKeyRef.current = null;
-    setSelectedAnnotationId((currentId) =>
-      currentId && historyEntry.before.some((annotation) => annotation.id === currentId) ? currentId : null,
-    );
-    setRecipeWithoutHistory({ ...latestRecipeRef.current, annotations: historyEntry.before }, { notify: true });
-    syncAnnotationHistoryAvailability();
-  }
-
-  function handleAnnotationRedo() {
-    const historyEntry = annotationRedoStackRef.current.at(-1);
-    if (!historyEntry) return;
-
-    annotationRedoStackRef.current = annotationRedoStackRef.current.slice(0, -1);
-    annotationUndoStackRef.current = [...annotationUndoStackRef.current, historyEntry].slice(-100);
-    activeAnnotationHistoryKeyRef.current = null;
-    setSelectedAnnotationId((currentId) =>
-      currentId && historyEntry.after.some((annotation) => annotation.id === currentId) ? currentId : null,
-    );
-    setRecipeWithoutHistory({ ...latestRecipeRef.current, annotations: historyEntry.after }, { notify: true });
-    syncAnnotationHistoryAvailability();
-  }
+  const handleAnnotationUndo = handleUndo;
+  const handleAnnotationRedo = handleRedo;
 
   useEffect(() => {
-    if (activeTool !== "annotation") return;
-
-    function handleAnnotationShortcut(event: KeyboardEvent) {
+    function handleHistoryShortcut(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      const tagName = target?.tagName.toLowerCase();
-      if (target?.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select") {
-        return;
-      }
-
+      if (!target || !editorRootRef.current?.contains(target)) return;
+      const tag = target.tagName.toLowerCase();
+      if (target.isContentEditable || tag === "textarea" || tag === "select" ||
+          (tag === "input" && (target as HTMLInputElement).type !== "range")) return;
       const key = event.key.toLowerCase();
-      const isUndo = (event.ctrlKey || event.metaKey) && key === "z" && !event.shiftKey;
-      const isRedo = (event.ctrlKey || event.metaKey) && (key === "y" || (key === "z" && event.shiftKey));
-      if (!isUndo && !isRedo) return;
-
+      if (!(event.ctrlKey || event.metaKey) || (key !== "z" && key !== "y")) return;
       event.preventDefault();
-      if (isUndo) {
-        handleAnnotationUndo();
-      } else {
-        handleAnnotationRedo();
-      }
+      if (key === "y" || event.shiftKey) handleRedo(); else handleUndo();
     }
-
-    window.addEventListener("keydown", handleAnnotationShortcut);
-    return () => window.removeEventListener("keydown", handleAnnotationShortcut);
-  }, [activeTool]);
+    window.addEventListener("keydown", handleHistoryShortcut);
+    return () => window.removeEventListener("keydown", handleHistoryShortcut);
+  }, []);
 
   function getStagePoint(event: PointerEvent<HTMLElement>) {
     const rect = imageViewportRef.current?.getBoundingClientRect() ?? stageRef.current?.getBoundingClientRect();
@@ -1078,7 +1087,6 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     annotationDragRef.current = null;
     annotationCreateRef.current = null;
     annotationResizeRef.current = null;
-    activeAnnotationHistoryKeyRef.current = null;
     landmarkDragRef.current = null;
     localMaskActiveStrokeIdRef.current = null;
     panDragRef.current = null;
@@ -1094,6 +1102,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     const metrics = getViewportGestureMetrics(getTrackedTouchPoints());
     if (!metrics) return false;
     clearPendingTouchAction();
+    cancelHistoryGesture();
     clearActivePointerEditState();
     setSaveMenuPosition(null);
     viewportGestureRef.current = {
@@ -1171,7 +1180,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     const strokeId = `local-mask-${Date.now()}-${localMaskStrokes.length}`;
     localMaskActiveStrokeIdRef.current = strokeId;
     setLocalMaskBrushPreview({ radius: localMaskRadius, x: point.x, y: point.y });
-    setLocalMaskStrokes((current) => [
+    updateMask((current) => [
       ...current,
       {
         id: strokeId,
@@ -1179,7 +1188,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
         points: [clampAnnotationPoint(point)],
         radius: localMaskRadius,
       },
-    ]);
+    ], `mask:${strokeId}`);
   }
 
   function appendLocalMaskPoint(point: { x: number; y: number }) {
@@ -1187,7 +1196,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     setLocalMaskBrushPreview({ radius: localMaskRadius, x: point.x, y: point.y });
     if (!strokeId) return;
     const nextPoint = clampAnnotationPoint(point);
-    setLocalMaskStrokes((current) =>
+    updateMask((current) =>
       current.map((stroke) =>
         stroke.id === strokeId
           ? {
@@ -1196,7 +1205,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
             }
           : stroke,
       ),
-    );
+      `mask:${strokeId}`);
   }
 
   function buildRectFromDrag(start: { x: number; y: number }, end: { x: number; y: number }) {
@@ -1303,25 +1312,25 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }
 
   function handleToolChange(tool: EditorTool) {
+    commitHistoryGesture();
     setActiveTool(tool);
     setSelectedAnnotationId(null);
     setSelectedLandmarkKey(null);
     setTemporarilyHideLandmarks(false);
-    if (tool === "face" || tool === "eyes") {
-      ensureFallbackLandmarks({ notify: true });
-    }
     if (tool !== "liquify") {
       clearTransientEditState();
     }
   }
 
   function resetAllAdjustments() {
-    clearRecipeHistory();
-    setRecipeWithoutHistory({
+    commitHistoryGesture();
+    updateRecipe(() => ({
       ...createEmptyRecipe(),
+      imageCoordinates: latestRecipeRef.current.imageCoordinates,
       annotations: latestRecipeRef.current.annotations,
       landmarks: latestRecipeRef.current.landmarks,
-    }, { notify: true });
+      details: latestRecipeRef.current.details,
+    }));
   }
 
   function handleZoomChange(value: number) {
@@ -1365,59 +1374,85 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     setExtraReferencePreviewUrl(URL.createObjectURL(file));
   }
 
-  function handleLocalReferenceSelected(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (!file) return;
-    setLocalUploadedReferenceFile(file);
+  function changeLocalReferences(items: ReferenceAttachment[]) {
+    referencesEdited.current = true;
+    localReferencesRef.current = items;
+    setLocalReferences(items);
   }
-
-  function toggleLocalReferenceKey(referenceKey: string) {
-    setLocalUploadedReferenceFile(null);
-    setLocalUploadedReferenceDescription("");
-    if (localReferenceInputRef.current) {
-      localReferenceInputRef.current.value = "";
-    }
-    setSelectedLocalReferenceKeys((current) => (current.includes(referenceKey) ? [] : [referenceKey]));
+  function markReferenceUploaded(key:string, file:File, assetId:string) {
+    if (!editorLiveRef.current || !localReferencesRef.current.some(item=>item.key===key && item.file===file)) return;
+    changeLocalReferences(localReferencesRef.current.map(item=>item.key===key && item.file===file ? {...item,assetId}:item));
+  }
+  function referenceDraft(canonical = false) {
+    return (canonical || referencesEdited.current) ? {localReferences:localReferencesRef.current, selectedLocalReferenceKeys:[],
+      localUploadedReferenceFile:null,localUploadedReferenceDescription:""} :
+      {selectedLocalReferenceKeys:initialDraft?.selectedLocalReferenceKeys??[],
+        localUploadedReferenceFile:initialDraft?.localUploadedReferenceFile??null,
+        localUploadedReferenceDescription:initialDraft?.localUploadedReferenceDescription??""};
   }
 
   async function exportEditedBlob(includeAnnotations: boolean, annotations = latestRecipeRef.current.annotations) {
-    const pixiBlob = await pixiStageRef.current?.exportImage();
-    if (pixiBlob) {
-      if (!includeAnnotations) return pixiBlob;
-      const image = await loadBlobImage(pixiBlob);
-      const outputCanvas = document.createElement("canvas");
-      outputCanvas.width = image.naturalWidth || image.width || stageWidth;
-      outputCanvas.height = image.naturalHeight || image.height || stageHeight;
-      const context = outputCanvas.getContext("2d");
-      if (!context) throw new Error("Unable to export editor image");
-      context.drawImage(image, 0, 0, outputCanvas.width, outputCanvas.height);
-      drawAnnotationsToCanvas(context, annotations, outputCanvas.width, outputCanvas.height);
-      return canvasToPngBlob(outputCanvas);
-    }
-
-    const image = baseImageRef.current;
-    if (!image) throw new Error("No editor image is loaded");
+    commitHistoryGesture();
+    const stage = pixiStageRef.current;
+    if (!stage || !pixiVisualReady || !imageCoordinatesReady) throw new Error("Editor image is not ready");
+    // Slider updates render on the next animation frame; save must include the latest recipe.
+    stage.applyRecipe(latestRecipeRef.current);
+    const pixiBlob = await stage.exportImage();
+    if (!includeAnnotations) return pixiBlob;
+    const image = await loadBlobImage(pixiBlob);
     const outputCanvas = document.createElement("canvas");
-    outputCanvas.width = image.naturalWidth || stageWidth;
-    outputCanvas.height = image.naturalHeight || stageHeight;
+    outputCanvas.width = image.naturalWidth || image.width;
+    outputCanvas.height = image.naturalHeight || image.height;
     const context = outputCanvas.getContext("2d");
     if (!context) throw new Error("Unable to export editor image");
     context.drawImage(image, 0, 0, outputCanvas.width, outputCanvas.height);
-    if (includeAnnotations) {
-      drawAnnotationsToCanvas(context, annotations, outputCanvas.width, outputCanvas.height);
-    }
+    drawAnnotationsToCanvas(context, annotations, outputCanvas.width, outputCanvas.height);
     return canvasToPngBlob(outputCanvas);
   }
 
+  async function prepareImageExport(includeAnnotations = false, includePrivateMetadata = true, canonicalReferences = false) {
+    const frozenDraft = structuredClone(captureDraft(canonicalReferences));
+    const frozenVersion = historyRef.current!.version;
+    const frozenSource = latestImageUrlRef.current;
+    const compactRecipe = compactRecipeAnnotations(frozenDraft.recipe);
+    const exportedBlob = await exportEditedBlob(includeAnnotations, compactRecipe.annotations);
+    const imageBlob = includePrivateMetadata ? await embedEditRecipeInPng(exportedBlob, compactRecipe) : exportedBlob;
+    if (!editorLiveRef.current || latestImageUrlRef.current !== frozenSource || historyRef.current!.version !== frozenVersion) {
+      throw new Error("Editor changed during export");
+    }
+    return { annotationPrompt: buildAnnotationPrompt(compactRecipe.annotations),
+      fileName: `kigcraft-${includeAnnotations ? "annotated" : "edit"}-${Date.now()}.png`,
+      imageBlob, recipe: compactRecipe, draftSnapshot: frozenDraft };
+  }
+
   async function handleSave() {
-    const compactRecipe = compactRecipeAnnotations(latestRecipeRef.current);
-    const imageBlob = await exportEditedBlob(false);
-    const fileName = `kigcraft-edit-${Date.now()}.png`;
-    downloadBlob(imageBlob, fileName);
-    await onSave?.({ annotationPrompt: buildAnnotationPrompt(compactRecipe.annotations), fileName, imageBlob, recipe: compactRecipe });
+    flushEditorInput();
+    if (!pixiVisualReady || !imageCoordinatesReady || saveInFlight.current) return;
+    saveInFlight.current = true; setIsSavingImage(true); setSaveError("");
+    try {
+      const payload = await prepareImageExport();
+      if (downloadOnSave) downloadBlob(payload.imageBlob, payload.fileName);
+      await onSave?.(payload);
+    } catch { if (editorLiveRef.current) setSaveError("图片保存失败，修改已保留。请稍后重试。"); }
+    finally { saveInFlight.current = false; if (editorLiveRef.current) setIsSavingImage(false); }
+  }
+
+  const saveRef = useRef<() => Promise<void>>(async () => {});
+  saveRef.current = handleSave;
+
+  async function handleDownload(includeAnnotations = false) {
+    flushEditorInput();
+    if (!pixiVisualReady || !imageCoordinatesReady || saveInFlight.current) return;
+    saveInFlight.current = true; setIsSavingImage(true); setSaveError("");
+    try {
+      const payload = await prepareImageExport(includeAnnotations, false);
+      downloadBlob(payload.imageBlob, payload.fileName);
+    } catch { if (editorLiveRef.current) setSaveError("图片下载失败，修改已保留。请稍后重试。"); }
+    finally { saveInFlight.current = false; if (editorLiveRef.current) setIsSavingImage(false); }
   }
 
   async function handleRegenerate() {
+    flushEditorInput();
     if (!onRegenerate) return;
     const compactRecipe = compactRecipeAnnotations(latestRecipeRef.current);
     const editedImageBlob = await exportEditedBlob(false);
@@ -1435,6 +1470,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }
 
   async function handleSecondaryRegenerate() {
+    flushEditorInput();
     if (!onSecondaryRegenerate) return;
     const compactRecipe = compactRecipeAnnotations(latestRecipeRef.current);
     const editedImageBlob = await exportEditedBlob(false);
@@ -1452,48 +1488,65 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }
 
   async function handleLocalGenerate() {
-    if (!onLocalGenerate || !hasLocalMaskPaint(localMaskStrokes)) return;
-    setLocalGenerateError(null);
+    flushEditorInput();
+    if (localGenerationDisabled || !onLocalGenerate || localPreparationRef.current || !pixiVisualReady || !imageCoordinatesReady) return;
+    const snapshot = historyRef.current!.snapshot;
+    const sourceKey = latestImageUrlRef.current ?? "";
+    const note = localEditNote.trim() || buildAnnotationPrompt(snapshot.recipe.annotations);
+    if (!note || !hasLocalMaskPaint(snapshot.maskStrokes, stageWidth, stageHeight) ||
+        !maskMatches(snapshot.maskBinding, snapshot.recipe, imageSourceKey ?? sourceKey, stageWidth, stageHeight)) return;
+    localPreparationRef.current = true; setPreparingLocal(true); setLocalGenerateError(null);
+    const inputReferences = localReferencesRef.current.map(item=>({...item}));
     try {
-      const compactRecipe = compactRecipeAnnotations(latestRecipeRef.current);
+      const submittedRecipe = structuredClone(snapshot.recipe);
       const baseImageBlob = await exportEditedBlob(false);
       const baseImage = await loadBlobImage(baseImageBlob);
-      const maskImageBlob = await exportLocalMaskBlob(
-        localMaskStrokes,
-        baseImage.naturalWidth || baseImage.width || stageWidth,
-        baseImage.naturalHeight || baseImage.height || stageHeight,
-      );
+      const width = baseImage.naturalWidth || baseImage.width;
+      const height = baseImage.naturalHeight || baseImage.height;
+      if ((imageCoordinateEditing || detectedImageSize) && (width !== stageWidth || height !== stageHeight)) {
+        throw new Error("底图尺寸已变化，请重新确认选区。");
+      }
+      const maskImageBlob = await exportLocalMaskBlob(snapshot.maskStrokes, width, height);
+      if (!editorLiveRef.current || sourceKey !== (latestImageUrlRef.current ?? "") ||
+          JSON.stringify(historyRef.current!.snapshot) !== JSON.stringify(snapshot)) {
+        throw new Error("编辑内容已变化，请重新提交。");
+      }
       await onLocalGenerate({
-        baseImageBlob,
-        editNote: localEditNote.trim(),
-        maskImageBlob,
-        recipe: compactRecipe,
-        selectedReferenceKeys: [],
-        uploadedReferences: localUploadedReferenceFile
-          ? [{ description: localEditNote.trim(), file: localUploadedReferenceFile }]
-          : [],
+        baseImageBlob, editNote: note, maskImageBlob, recipe: submittedRecipe,
+        ...(localEditModes && localEditMode ? {localEditMode} : {}),
+        references: inputReferences,
+        selectedReferenceKeys: inputReferences.filter(item=>item.assetId&&!item.file).map(item=>item.assetId!),
+        uploadedReferences: inputReferences.filter(item=>item.file).map(item=>({description:item.usage,file:item.file!})),
       });
     } catch (error) {
       setLocalGenerateError(error instanceof Error ? error.message : "局部生成提交失败。");
-    }
+    } finally { localPreparationRef.current = false; setPreparingLocal(false); }
   }
 
   useImperativeHandle(
     ref,
     () => ({
+      captureDraft,
+      captureProjectDraft: () => captureDraft(true),
+      captureForAdoption: () => prepareImageExport(false, false, true),
+      markReferenceUploaded,
+      markReferenceUploadFailure:(key,file)=>referenceAttachments.current?.markUploadFailure(key,file),
       regenerate: handleRegenerate,
       secondaryRegenerate: handleSecondaryRegenerate,
+      save: () => saveRef.current(),
     }),
-    [handleRegenerate, handleSecondaryRegenerate],
+    [handleRegenerate, handleSecondaryRegenerate, captureDraft],
   );
 
   function beginParameterInteraction(key?: EyeControlKey) {
+    historyRef.current!.begin(`parameter:${activeTool}`);
     if (key !== "eyeRegionScale") {
       setTemporarilyHideLandmarks(true);
     }
   }
 
   function endParameterInteraction() {
+    commitHistoryGesture();
     setTemporarilyHideLandmarks(false);
   }
 
@@ -1511,6 +1564,14 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
 
   function handleEyeControlReset(key: EyeControlKey) {
     updateRecipe((currentRecipe) => updateEyeControl(currentRecipe, key, defaultEyeControlValues[key]));
+  }
+
+  function handleBrowControlChange(key: BrowControlKey, value: number) {
+    updateRecipe((currentRecipe) => updateBrowControl(currentRecipe, key, value));
+  }
+
+  function handleBrowControlReset(key: BrowControlKey) {
+    updateRecipe((currentRecipe) => updateBrowControl(currentRecipe, key, createEmptyRecipe().brows[key]));
   }
 
   function handleMouthControlChange(key: MouthControlKey, value: number) {
@@ -1566,6 +1627,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }
 
   function handleStagePointerDown(event: PointerEvent<HTMLElement>) {
+    event.currentTarget.focus({ preventScroll: true });
     if (!imageUrl) return;
     setShowLandmarkHint(false);
     const point = getStagePoint(event);
@@ -1674,7 +1736,8 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     }
 
     if (landmarkDragRef.current) {
-      updateRecipe((currentRecipe) => updateManualLandmark(currentRecipe, landmarkDragRef.current!.key, point));
+      updateRecipe((currentRecipe) => updateManualLandmark(currentRecipe, landmarkDragRef.current!.key, point),
+        { historyKey: `landmark:${landmarkDragRef.current!.key}` });
       return;
     }
 
@@ -1763,10 +1826,10 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
       pendingTouchActionRef.current = null;
     }
 
+    commitHistoryGesture();
     liquifyDrawingRef.current = false;
     lastLiquifyStrokePointRef.current = null;
     activeLiquifyHistoryKeyRef.current = null;
-    activeAnnotationHistoryKeyRef.current = null;
     annotationCreateRef.current = null;
     annotationResizeRef.current = null;
     annotationDragRef.current = null;
@@ -1790,6 +1853,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }
 
   function handleStagePointerCancel(event: PointerEvent<HTMLElement>) {
+    cancelHistoryGesture();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     untrackStagePointer(event.pointerId);
     clearPendingTouchAction();
@@ -1808,6 +1872,10 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
 
   function handleAnnotationPointerDown(annotationId: string, event: PointerEvent<HTMLDivElement>) {
     event.stopPropagation();
+    editorRootRef.current?.focus({ preventScroll: true });
+    trackStagePointer(event);
+    if (event.pointerType === "touch" && getTrackedTouchPoints().length >= 2) { beginViewportGesture(); return; }
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     setShowLandmarkHint(false);
     const point = getStagePoint(event);
     const annotation = latestRecipeRef.current.annotations.find((mark) => mark.id === annotationId);
@@ -1825,6 +1893,10 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
 
   function handleAnnotationHandlePointerDown(annotationId: string, handle: string, event: PointerEvent<HTMLDivElement>) {
     event.stopPropagation();
+    editorRootRef.current?.focus({ preventScroll: true });
+    trackStagePointer(event);
+    if (event.pointerType === "touch" && getTrackedTouchPoints().length >= 2) { beginViewportGesture(); return; }
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     setShowLandmarkHint(false);
     const annotation = latestRecipeRef.current.annotations.find((mark) => mark.id === annotationId);
     if (!annotation) return;
@@ -1839,7 +1911,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     };
   }
 
-  function handleAnnotationDelete(annotationId: string, event: PointerEvent<HTMLButtonElement>) {
+  function handleAnnotationDelete(annotationId: string, event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
     updateRecipe((currentRecipe) => removeAnnotationMark(currentRecipe, annotationId), {
       history: "annotation",
@@ -1850,8 +1922,14 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
 
   function handleLandmarkPointerDown(key: ManualLandmarkKey, event: PointerEvent<HTMLDivElement>) {
     event.stopPropagation();
+    editorRootRef.current?.focus({ preventScroll: true });
+    trackStagePointer(event);
+    if (event.pointerType === "touch" && getTrackedTouchPoints().length >= 2) { beginViewportGesture(); return; }
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     setShowLandmarkHint(false);
-    landmarkFallbackRef.current = false;
+    landmarkAbortRef.current?.abort();
+    landmarkDetectionRunRef.current += 1;
+    setIsDetectingLandmarks(false);
     landmarkDragRef.current = { key, offsetX: 0, offsetY: 0, pointerId: event.pointerId };
     setSelectedLandmarkKey(key);
   }
@@ -1862,36 +1940,32 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     const image = baseImageRef.current;
     if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
 
+    landmarkAbortRef.current?.abort();
+    const controller = new AbortController();
+    landmarkAbortRef.current = controller;
     const runId = ++landmarkDetectionRunRef.current;
     setIsDetectingLandmarks(true);
     try {
-      const detection = await detectAnimeLandmarks(image);
+      const detection = await detectEditorLandmarks(image, controller.signal);
       if (runId !== landmarkDetectionRunRef.current) return;
       if (!detection) {
         setLandmarkDebugInfo(null);
         setSecondaryLandmarks([]);
-        ensureFallbackLandmarks({ notify: true });
+        toastError(c("landmarkNotFound"));
         return;
       }
 
       setSecondaryLandmarks(detection.details);
       setLandmarkDebugInfo(detection.debug);
-      landmarkFallbackRef.current = false;
-      setRecipeWithoutHistory(
-        {
-          ...latestRecipeRef.current,
-          landmarks: detection.controls,
-        },
-        { notify: true },
-      );
+      updateRecipe(current => ({ ...current, landmarks: detection.controls }));
       setShowLandmarkControls(true);
     } catch (error: unknown) {
       if (runId === landmarkDetectionRunRef.current) {
         setLandmarkDebugInfo(null);
         setSecondaryLandmarks([]);
-        ensureFallbackLandmarks({ notify: true });
+        toastError(c("landmarkNotFound"));
       }
-      console.warn("Anime landmark detection failed", error);
+      if (!controller.signal.aborted) console.warn("Anime landmark detection failed", error);
     } finally {
       if (runId === landmarkDetectionRunRef.current) {
         setIsDetectingLandmarks(false);
@@ -1900,6 +1974,13 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   }
 
   function renderToolControls() {
+    if (needsLandmarkDetection && !currentLandmarks) {
+      return <Stack gap="sm" data-testid="landmark-calibration-required">
+        <Text role="status">{c(isDetectingLandmarks ? "calibrationDetecting" : "calibrationRequired")}</Text>
+        <Button data-testid="landmark-manual-start" onClick={startManualCalibration}>{c("calibrationManual")}</Button>
+        <Text size="sm" c="dimmed">{c("calibrationManualHint")}</Text>
+      </Stack>;
+    }
     if (activeTool === "annotation") {
       const selectedAnnotationIndex = recipe.annotations.findIndex((annotation) => annotation.id === selectedAnnotationId);
       const selectedAnnotation = selectedAnnotationIndex >= 0 ? recipe.annotations[selectedAnnotationIndex] : null;
@@ -2016,6 +2097,11 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
             ))}
           </Group>
 
+          <Button data-testid="annotation-clear" disabled={recipe.annotations.length === 0}
+            onClick={() => updateRecipe(current => ({ ...current, annotations: [] }))} size="xs" variant="light">
+            清空标注
+          </Button>
+
           {selectedAnnotation ? (
             <Stack
               gap={1}
@@ -2050,6 +2136,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                       字号
                     </Text>
                     <Slider
+                      onChangeCommitted={commitHistoryGesture}
                       data-testid={`annotation-font-size-${selectedAnnotation.id}`}
                       max={72}
                       min={12}
@@ -2165,146 +2252,90 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
     }
 
     if (activeTool === "local-generate") {
-      const hasMask = hasLocalMaskPaint(localMaskStrokes);
-      const canSubmitLocalGenerate = hasMask && !isRegenerating;
+      const hasMask = maskHasPaint;
+      const hasInstruction = Boolean(localEditNote.trim() || buildAnnotationPrompt(recipe.annotations));
+      const canSubmitLocalGenerate = hasMask && !maskNeedsConfirmation && hasInstruction &&
+        Boolean(onLocalGenerate) && localReferences.length <= localReferenceLimit && !localGenerationDisabled && !isRegenerating && !preparingLocal && pixiVisualReady && imageCoordinatesReady;
 
+      const busy = Boolean(localBusyLabel);
+      const stepHint = !hasMask ? c("localMaskNeeded") : c("localMaskReady");
       return (
-        <Stack gap={1.25} data-testid="local-generate-controls">
-          <Group gap={0.75} wrap="wrap">
-            <Button
-              data-testid="local-mask-mode-brush"
-              onClick={() => setLocalMaskMode("brush")}
-              size="xs"
-              variant={localMaskMode === "brush" ? "filled" : "light"}
-            >
-              笔刷
-            </Button>
-            <Button
-              data-testid="local-mask-mode-erase"
-              onClick={() => setLocalMaskMode("erase")}
-              size="xs"
-              variant={localMaskMode === "erase" ? "filled" : "light"}
-            >
-              橡皮
-            </Button>
-            <Button data-testid="local-mask-clear" onClick={() => setLocalMaskStrokes([])} size="xs" variant="light">
-              清空
-            </Button>
-          </Group>
-
-          <Group align="center" gap={1} wrap="nowrap">
-            <Text c="dimmed" miw={42} size="sm">
-              笔刷
-            </Text>
-            <Slider
-              data-testid="local-mask-radius"
-              max={120}
-              min={8}
-              onChange={setLocalMaskRadius}
-              step={2}
-              style={{ flex: 1 }}
-              value={localMaskRadius}
-            />
-            <Text c="dimmed" miw={34} size="sm" ta="right">
-              {localMaskRadius}
-            </Text>
-          </Group>
-
-          <Textarea
-            data-testid="editor-local-generate-note"
-            minRows={3}
-            onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setLocalEditNote(event.currentTarget.value)}
-            placeholder="描述这块要怎么改"
-            value={localEditNote}
-          />
-
-          {false && localReferenceOptions.length > 0 ? (
-            <Stack gap={0.75}>
-              <Text c="white" fw={700} size="sm">
-                参考图
-              </Text>
-              <Group gap={0.75} wrap="wrap">
-                {localReferenceOptions.map((option) => {
-                  const selected = selectedLocalReferenceKeys.includes(option.key);
-                  return (
-                    <Button
-                      key={option.key}
-                      data-testid={`editor-local-reference-${option.key}`}
-                      onClick={() => toggleLocalReferenceKey(option.key)}
-                      size="xs"
-                      variant={selected ? "filled" : "light"}
-                    >
-                      {option.label}
-                    </Button>
-                  );
-                })}
-              </Group>
-            </Stack>
-          ) : null}
-
-          <Box
-            accept="image/png,image/jpeg,image/webp"
-            component="input"
-            data-testid="editor-local-reference-file-input"
-            onChange={handleLocalReferenceSelected}
-            ref={localReferenceInputRef}
-            style={{ display: "none" }}
-            type="file"
-          />
-          <Group gap={0.75} wrap="wrap">
-            <Button
-              data-testid="editor-local-reference-upload"
-              onClick={() => localReferenceInputRef.current?.click()}
-              size="xs"
-              variant="light"
-            >
-              {localUploadedReferenceFile ? "更换参考图" : "上传参考图"}
-            </Button>
-            {localUploadedReferenceFile ? (
-              <Text c="dimmed" size="sm">
-                {localUploadedReferenceFile.name}
-              </Text>
-            ) : null}
-          </Group>
-          {false && localUploadedReferenceFile ? (
+        <div className="lg-panel" data-testid="local-generate-controls" data-busy={busy ? "true" : undefined}>
+          {busy ? <p className="lg-busy" role="status"><span className="kc-spinner lg-spin" aria-hidden="true" />{localBusyLabel}</p> : null}
+          <section className="lg-step">
+            <header><span className="lg-no">1</span><h3>{c("localStepMask")}</h3></header>
+            <div className="lg-tools">
+              <div className="lg-seg" role="group" aria-label={c("localStepMask")}>
+                <button type="button" data-testid="local-mask-mode-brush" aria-pressed={localMaskMode === "brush"} disabled={busy}
+                  onClick={() => setLocalMaskMode("brush")}>{c("localBrush")}</button>
+                <button type="button" data-testid="local-mask-mode-erase" aria-pressed={localMaskMode === "erase"} disabled={busy}
+                  onClick={() => setLocalMaskMode("erase")}>{c("localEraser")}</button>
+              </div>
+              <button type="button" className="lg-ghost" data-testid="local-mask-clear" disabled={busy || !hasMask}
+                onClick={() => updateMask(() => [])}>{c("localClear")}</button>
+            </div>
+            <div className="lg-size">
+              <span>{c("localBrushSize")}</span>
+              <Slider data-testid="local-mask-radius" disabled={busy} max={120} min={8} onChange={setLocalMaskRadius} step={2}
+                style={{ flex: 1 }} value={localMaskRadius} />
+              <output>{localMaskRadius}</output>
+            </div>
+            <p className="lg-hint" data-state={hasMask ? "ok" : "todo"}>{stepHint}</p>
+          </section>
+          <section className="lg-step">
+            <header><span className="lg-no">2</span><h3>{c("localStepNote")}</h3></header>
             <Textarea
-              data-testid="editor-local-reference-description"
-              minRows={2}
-              onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-                setLocalUploadedReferenceDescription(event.currentTarget.value)
-              }
-              placeholder="这张图参考什么"
-              value={localUploadedReferenceDescription}
+              data-testid="editor-local-generate-note"
+              disabled={busy}
+              minRows={3}
+              onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setLocalEditNote(event.currentTarget.value)}
+              placeholder={c("localNotePlaceholder")}
+              value={localEditNote}
             />
-          ) : null}
-
-          {!hasMask ? (
-            <Text c="dimmed" size="sm">
-              先涂抹要修改的区域
-            </Text>
-          ) : null}
+          </section>
+          {localEditModes ? <section className="lg-step">
+            <header><span className="lg-no">3</span><h3>{c("localScope")}</h3></header>
+            <div className="lg-seg lg-seg-wide" role="radiogroup" aria-label={c("localScope")}>
+              <button type="button" role="radio" aria-checked={(localEditMode ?? "preserve") === "preserve"} disabled={busy}
+                onClick={() => setLocalEditMode("preserve")}>{c("localPreserve")}</button>
+              <button type="button" role="radio" aria-checked={localEditMode === "lock_outside"} disabled={busy}
+                onClick={() => setLocalEditMode("lock_outside")}>{c("localLock")}</button>
+            </div>
+            <p className="lg-hint">{localEditMode === "lock_outside" ? c("localLockHint") : c("localPreserveHint")}</p>
+          </section> : null}
+          <section className="lg-step lg-references">
+            <header><span className="lg-no">{localEditModes ? 4 : 3}</span><h3>{c("localStepRefs")}</h3></header>
+            <ReferenceAttachments ref={referenceAttachments} upload={onUploadReference} items={localReferences} onChange={changeLocalReferences} maximum={localReferenceLimit}
+              disabled={busy} options={localReferenceOptions} fileInputTestId="editor-local-reference-file-input" />
+          </section>
+          {maskNeedsConfirmation ? <Alert color="yellow" role="alert" data-testid="mask-needs-confirmation">
+            {c("localMaskMoved")}
+            <Button data-testid="mask-confirm-position" size="xs" onClick={confirmMaskPosition}>{c("localMaskConfirm")}</Button>
+          </Alert> : null}
           {localGenerateError ? (
             <Alert color="red" data-testid="editor-local-generate-error" role="alert" variant="light">
               {localGenerateError}
             </Alert>
           ) : null}
-          <Button
-            data-testid="editor-local-generate-submit"
-            disabled={!canSubmitLocalGenerate}
-            loading={isRegenerating}
-            onClick={() => void handleLocalGenerate()}
-            size="sm"
-            variant="filled"
-          >
-            局部生成
-          </Button>
-        </Stack>
+          <div className="lg-submit-row">
+            <button type="button" className="lg-submit" data-testid="editor-local-generate-submit" disabled={!canSubmitLocalGenerate}
+              aria-busy={isRegenerating || preparingLocal || busy}
+              onClick={() => void handleLocalGenerate()}>
+              {isRegenerating || preparingLocal || busy ? <span className="kc-spinner" aria-hidden="true" /> : null}
+              {c("localSubmit")}
+            </button>
+            {!hasInstruction ? <p className="lg-hint lg-submit-hint">{c("localNoteNeeded")}</p> : null}
+          </div>
+        </div>
       );
     }
 
-    if (activeTool === "face") {
+    if (activeTool === "face" || activeTool === "proportion") {
+      const group = activeTool === "face" ? "shape" : "proportion";
       return (
         <FaceControls
+          key={group}
+          group={group}
           compact={isMobileEditor}
           debugValues={landmarkDebugMode}
           onChange={handleFaceControlChange}
@@ -2326,6 +2357,20 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
           onSliderInteractionEnd={endParameterInteraction}
           onSliderInteractionStart={beginParameterInteraction}
           values={recipe.eyes}
+        />
+      );
+    }
+
+    if (activeTool === "brows") {
+      return (
+        <BrowControls
+          compact={isMobileEditor}
+          debugValues={landmarkDebugMode}
+          onChange={handleBrowControlChange}
+          onReset={handleBrowControlReset}
+          onSliderInteractionEnd={endParameterInteraction}
+          onSliderInteractionStart={beginParameterInteraction}
+          values={recipe.brows}
         />
       );
     }
@@ -2355,6 +2400,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
           onBrushRadiusReset={handleLiquifyBrushRadiusReset}
           onRedo={handleRedo}
           onScaleChange={handleLiquifyScaleAmountChange}
+          onScaleInteractionEnd={commitHistoryGesture}
           onScaleReset={handleLiquifyScaleAmountReset}
           onSymmetryAxisChange={handleLiquifySymmetryAxisChange}
           onSymmetryAxisReset={handleLiquifySymmetryAxisReset}
@@ -2400,6 +2446,16 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
           ["mouthLeft", currentLandmarks.mouthLeft],
           ["mouthCenter", currentLandmarks.mouthCenter],
           ["mouthRight", currentLandmarks.mouthRight],
+          ...(currentLandmarks.brows
+            ? ([
+                ["leftBrowInner", currentLandmarks.brows.left.inner],
+                ["leftBrowPeak", currentLandmarks.brows.left.peak],
+                ["leftBrowOuter", currentLandmarks.brows.left.outer],
+                ["rightBrowInner", currentLandmarks.brows.right.inner],
+                ["rightBrowPeak", currentLandmarks.brows.right.peak],
+                ["rightBrowOuter", currentLandmarks.brows.right.outer],
+              ] as Array<[string, LandmarkPoint]>)
+            : []),
         ]
       : [];
     const formatNormalizedPoint = (point: { x: number; y: number }) =>
@@ -2473,6 +2529,12 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                   </span>
                 ))
               : " none"}
+            {currentLandmarks && !currentLandmarks.brows ? (
+              <span>
+                <br />
+                brows: estimated from eyes
+              </span>
+            ) : null}
           </Text>
           <Text component="div" size="xs" style={{ color: "rgba(250, 204, 21, 0.9)", lineHeight: 1.35 }}>
             低置信度点:
@@ -2583,33 +2645,14 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
   };
 
   return (
-    <Paper className="grunge-card" component="section" p={{ base: 2, md: 3 }} shadow="sm" withBorder>
-      <Stack gap={2}>
-        <EditorToolbar
-          isComparingOriginal={compareOriginal}
-          isRecognizingFace={isDetectingLandmarks}
-          isRegenerating={isRegenerating}
-          regenerateLabel={regenerateLabel}
-          secondaryRegenerateLabel={secondaryRegenerateLabel}
-          showRegenerateActions={showRegenerateActions}
-          onCompareEnd={() => setCompareOriginal(false)}
-          onCompareStart={() => setCompareOriginal(true)}
-          onClearImage={onClearImage}
-          onFit={() => {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-          }}
-          onRegenerate={onRegenerate ? () => void handleRegenerate() : undefined}
-          onRecognizeFace={canShowLandmarkToggle ? () => void recognizeFaceLandmarks() : undefined}
-          onResetAll={resetAllAdjustments}
-          onSecondaryRegenerate={onSecondaryRegenerate ? () => void handleSecondaryRegenerate() : undefined}
-          onSave={() => void handleSave()}
-          onZoomChange={handleZoomChange}
-          showViewportActions={false}
-          zoomPercent={zoomPercent}
-        />
+    <EditorInputFlushContext.Provider value={inputFlushersRef.current}>
+    <Paper ref={editorRootRef} tabIndex={-1} onBlur={commitHistoryGesture} className="grunge-card editor-workspace" component="section" p={{ base: 2, md: 3 }} shadow="sm" withBorder>
+      <Stack gap={2} className="editor-workspace-stack">
+        {pixiStageFailed ? <Alert color="red" role="alert">图片编辑器未能加载，请重新打开后再保存。</Alert> : null}
+        {saveError ? <Alert color="red" role="alert">{saveError}</Alert> : null}
 
         <Box
+          className="editor-shell"
           data-parameters-position={isMobileEditor ? "bottom" : "right"}
           data-testid="editor-shell"
           style={{
@@ -2617,13 +2660,14 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
             display: isMobileEditor ? "flex" : "grid",
             flexDirection: isMobileEditor ? "column" : undefined,
             gap: isMobileEditor ? 12 : 16,
-            gridTemplateColumns: isMobileEditor ? undefined : "144px minmax(420px, 1fr) minmax(300px, 340px)",
+            gridTemplateColumns: isMobileEditor ? undefined : "144px minmax(0, 1fr) 340px",
             minHeight: isMobileEditor ? undefined : "min(760px, calc(100vh - 220px))",
             overflowX: isMobileEditor ? "visible" : "auto",
           }}
         >
           {!isMobileEditor && (
             <Box
+              className="editor-rail"
               p={1}
               style={{
                 ...editorPanelStyle,
@@ -2648,12 +2692,47 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
               p={isMobileEditor ? 0.75 : 1}
               style={{
                 ...editorPanelStyle,
+                alignItems: "center",
                 alignSelf: "stretch",
                 boxShadow: "var(--kb-hard-shadow-sm)",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
                 minWidth: 0,
+                overflow: "visible",
               }}
             >
+              <Box className="editor-primary-actions" style={{ flex: "1 1 auto", minWidth: 0 }}>
+                <EditorToolbar
+                  saveLabel={saveLabel}
+                  canSave={pixiVisualReady && imageCoordinatesReady && !isSavingImage}
+                  isComparingOriginal={compareOriginal}
+                  isRecognizingFace={isDetectingLandmarks}
+                  isRegenerating={isRegenerating}
+                  regenerateLabel={regenerateLabel}
+                  secondaryRegenerateLabel={secondaryRegenerateLabel}
+                  showRegenerateActions={showRegenerateActions}
+                  onCompareEnd={() => setCompareOriginal(false)}
+                  onCompareStart={() => setCompareOriginal(true)}
+                  onClearImage={onClearImage}
+                  onFit={() => {
+                    setZoom(1);
+                    setPan({ x: 0, y: 0 });
+                  }}
+                  onRegenerate={onRegenerate ? () => void handleRegenerate() : undefined}
+                  onRecognizeFace={canShowLandmarkToggle ? () => void recognizeFaceLandmarks() : undefined}
+                  onResetAll={resetAllAdjustments}
+                  onSecondaryRegenerate={onSecondaryRegenerate ? () => void handleSecondaryRegenerate() : undefined}
+                  onSave={() => void handleSave()}
+                  onDownload={!downloadOnSave ? () => void handleDownload() : undefined}
+                  onZoomChange={handleZoomChange}
+                  showViewportActions={false}
+                  zoomPercent={zoomPercent}
+                />
+              </Box>
+              <Box style={{ flex: "0 0 auto", minWidth: 0 }}>
               <EditorToolbar
+                canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo}
                 isComparingOriginal={compareOriginal}
                 landmarkDebugMode={landmarkDebugMode}
                 landmarksVisible={showLandmarkControls}
@@ -2685,10 +2764,12 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                 showPrimaryActions={false}
                 zoomPercent={zoomPercent}
               />
+              </Box>
             </Box>
             <Box
               aria-label={imageUrl ? `候选 ${candidateIndex} 编辑画布` : "图像编辑画布"}
               data-testid="editor-stage"
+              tabIndex={0}
               onContextMenu={handleStageContextMenu}
               onPointerCancel={handleStagePointerCancel}
               onPointerDown={handleStagePointerDown}
@@ -2704,7 +2785,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                 border: "3px solid var(--kb-line)",
                 borderRadius: 0,
                 boxShadow: "var(--kb-hard-shadow)",
-                cursor: activeTool === "face" || activeTool === "eyes" || activeTool === "mouth" ? "grab" : "crosshair",
+                cursor: landmarkTools.has(activeTool) ? "grab" : "crosshair",
                 display: "flex",
                 flex: 1,
                 aspectRatio: isMobileEditor ? stageAspectRatio : undefined,
@@ -2770,7 +2851,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                       position: "absolute",
                       transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                       transformOrigin: "center",
-                      transition: "transform 120ms ease",
+                      transition: "none",
                     }}
                   >
                     <Box
@@ -2801,12 +2882,13 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                           pointerEvents: "none",
                           position: "absolute",
                           transform: compareOriginal ? undefined : fallbackPreviewTransform,
-                          transition: "filter 120ms ease, opacity 80ms ease, transform 120ms ease",
+                          transition: "none",
                           width: "100%",
                         }}
                       />
                       <Box
                         data-testid="pixi-host"
+                        aria-hidden="true"
                         ref={setPixiHostElement}
                         style={{
                           height: "100%",
@@ -2814,13 +2896,15 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                           opacity: compareOriginal || pixiStageFailed ? 0 : 1,
                           pointerEvents: "none",
                           position: "absolute",
-                          transition: "opacity 80ms ease",
+                          transition: "none",
                           width: "100%",
                         }}
                       />
                       <AnnotationLayer
+                        imagePixelScale={imageToPreviewScale}
                         annotations={activeTool === "annotation" ? recipe.annotations : []}
-                        brushPreview={visibleLiquifyBrushPreview}
+                        brushPreview={displayLiquifyBrushPreview}
+                        exactBrushRadius={Boolean(recipe.imageCoordinates)}
                         debugFaceBox={normalizedDebugFaceBox}
                         debugHrnetBox={normalizedDebugHrnetBox}
                         debugLandmarks={landmarkDebugInfo?.points}
@@ -2828,7 +2912,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                         height={stageHeight}
                         landmarks={currentLandmarks}
                         liquifySymmetryAxis={liquifySymmetryAxis}
-                        liquifyStrokes={recipe.liquify}
+                        liquifyStrokes={displayLiquifyStrokes}
                         onAnnotationDelete={handleAnnotationDelete}
                         onAnnotationHandlePointerDown={handleAnnotationHandlePointerDown}
                         onAnnotationPointerDown={handleAnnotationPointerDown}
@@ -2838,18 +2922,10 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                         secondaryLandmarks={secondaryLandmarks}
                         showLandmarkDebug={landmarkDebugMode}
                         showLandmarks={effectiveShowLandmarks || landmarkDebugMode}
-                        showLiquifySymmetryAxis={
-                          activeTool === "liquify" && liquifyToolMode === "warp" && liquifySymmetryEnabled
-                        }
                         showSecondaryLandmarks={landmarkDebugMode && !landmarkDebugInfo}
+                        showLiquifySymmetryAxis={activeTool === "liquify" && liquifyToolMode === "warp" && liquifySymmetryEnabled}
                         showLiquifyStrokes={activeTool === "liquify"}
-                        visible={
-                          activeTool === "annotation" ||
-                          activeTool === "face" ||
-                          activeTool === "eyes" ||
-                          activeTool === "mouth" ||
-                          activeTool === "liquify"
-                        }
+                        visible={activeTool === "annotation" || activeTool === "liquify" || landmarkTools.has(activeTool)}
                         width={stageWidth}
                       />
                       {activeTool === "local-generate" ? (
@@ -2862,7 +2938,8 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                       ) : null}
                     </Box>
                   </Box>
-                  <Tooltip label="按住对比原图">
+                  <Box className="editor-compare-anchor" style={{ bottom: 12, position: "absolute", right: 12, zIndex: 12 }}>
+                  <Tooltip label="按住对比原图" placement="left" hidden={compareOriginal}>
                     <ActionIcon
                       aria-label="按住对比原图"
                       color={compareOriginal ? "cyan" : "gray"}
@@ -2896,18 +2973,15 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                         background: compareOriginal ? "var(--kb-dirty-yellow)" : "var(--kb-paper)",
                         border: "3px solid var(--kb-line)",
                         borderRadius: 0,
-                        bottom: 12,
                         boxShadow: "var(--kb-hard-shadow-sm)",
                         color: "var(--kb-ink)",
-                        position: "absolute",
-                        right: 12,
-                        zIndex: 12,
                       }}
                       variant={compareOriginal ? "filled" : "light"}
                     >
                       <CompareOriginalIcon size={20} />
                     </ActionIcon>
                   </Tooltip>
+                  </Box>
                   {renderLandmarkDebugPanel()}
                   {saveMenuPosition ? (
                     <Paper
@@ -2934,18 +3008,25 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
                       <Stack gap={0.75}>
                         <Button
                           data-testid="editor-save-menu-save"
+                          disabled={!pixiVisualReady || !imageCoordinatesReady || isSavingImage}
                           fullWidth
                           leftSection={<IconPhoto size={16} />}
                           onClick={() => {
                             setSaveMenuPosition(null);
-                            void handleSave();
+                            if (downloadOnSave) void handleSave();
+                            else void handleDownload();
                           }}
                           role="menuitem"
                           size="sm"
                           variant="filled"
                         >
-                          保存图像
+                          {downloadOnSave ? "保存图像" : "下载图片"}
                         </Button>
+                        {!downloadOnSave && recipe.annotations.length > 0 ? <Button
+                          data-testid="editor-download-annotated" disabled={!pixiVisualReady || !imageCoordinatesReady || isSavingImage}
+                          onClick={() => { setSaveMenuPosition(null); void handleDownload(true); }} role="menuitem" size="sm" variant="light">
+                          下载标注图
+                        </Button> : null}
                         <Button
                           color="gray"
                           data-testid="editor-save-menu-cancel"
@@ -2976,15 +3057,18 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
           </Stack>
 
           <Box
+            className="editor-controls"
             data-testid="editor-controls-panel"
             p={isMobileEditor ? 1.5 : 2}
             style={{
               ...editorPanelStyle,
               flex: isMobileEditor ? "0 0 auto" : undefined,
               gridColumn: isMobileEditor ? undefined : 3,
+              maxWidth: isMobileEditor ? undefined : 340,
               maxHeight: isMobileEditor ? "min(38dvh, 360px)" : undefined,
-              minWidth: isMobileEditor ? 0 : 280,
+              minWidth: isMobileEditor ? 0 : 340,
               overflowY: isMobileEditor ? "auto" : undefined,
+              width: isMobileEditor ? undefined : 340,
             }}
           >
             {isMobileEditor ? (
@@ -3020,6 +3104,7 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, EditorWorkspace
         </Box>
       </Stack>
     </Paper>
+    </EditorInputFlushContext.Provider>
   );
 });
 

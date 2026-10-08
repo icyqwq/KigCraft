@@ -1,4 +1,6 @@
 import shutil
+import uuid
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -12,12 +14,55 @@ from app.generation.detail_analysis import (
     DetailAnalysisProviderRequest,
     DetailAnalysisProviderResult,
     DetailFeature,
+    MAX_DETAIL_CROPS,
+    filter_head_detail_analysis_result,
     parse_detail_analysis_json,
     persist_detail_crops,
+    reference_key_to_relative_path,
     resolve_detail_bbox_pixels,
 )
 from app.generation.schemas import DetailCropLockIn, DetailFeatureIn
-from app.generation.provider import ImageGenerationProvider, ReferenceRejectedError, get_generation_provider
+from app.generation.provider import (
+    ImageGenerationProvider,
+    REFERENCE_SAFETY_PROMPT,
+    ReferenceRejectedError,
+    get_generation_provider,
+)
+
+
+async def register_user(async_client: AsyncClient) -> None:
+    email = f"detail-{uuid.uuid4().hex}@example.com"
+    await async_client.post(
+        "/api/auth/send-code",
+        json={"email": email, "purpose": "register"},
+    )
+    response = await async_client.post(
+        "/api/auth/register",
+        json={
+            "terms_accepted": True,
+            "terms_version": get_settings().current_terms_version,
+            "email": email,
+            "code": "123456",
+            "password": "UserPassphrase7!",
+        },
+    )
+    assert response.status_code == 200
+
+
+def reference_image_bytes() -> bytes:
+    output = BytesIO()
+    Image.new("RGB", (200, 160), "white").save(output, format="WEBP")
+    return output.getvalue()
+
+
+async def upload_reference_image(async_client: AsyncClient) -> str:
+    response = await async_client.post(
+        "/api/references",
+        data={"kind": "front"},
+        files={"file": ("front.webp", reference_image_bytes(), "image/webp")},
+    )
+    assert response.status_code == 200
+    return response.json()["object_key"]
 
 
 class DetailAnalysisProvider(ImageGenerationProvider):
@@ -33,6 +78,7 @@ class DetailAnalysisProvider(ImageGenerationProvider):
     ) -> DetailAnalysisProviderResult:
         self.call_count += 1
         self.request = request
+        source_key = request.reference_keys[0] if request.reference_keys else "front:references/upload-a/front.webp"
         return DetailAnalysisProviderResult(
             features=[
                 DetailFeature(
@@ -47,7 +93,7 @@ class DetailAnalysisProvider(ImageGenerationProvider):
                     id="crop-headwear",
                     kind="headwear",
                     description="Left black X hair clip",
-                    source_reference_key="front:references/upload-a/front.webp",
+                    source_reference_key=source_key,
                     bbox={"x": 0.1, "y": 0.1, "width": 0.4, "height": 0.4},
                 )
             ],
@@ -61,8 +107,9 @@ class RemovingSourceDetailAnalysisProvider(DetailAnalysisProvider):
     ) -> DetailAnalysisProviderResult:
         result = await super().analyze_reference_details(request)
         reference_root = resolve_repo_path(get_settings().reference_upload_dir)
-        source = reference_root / "upload-a" / "front.webp"
-        source.unlink()
+        relative_source = reference_key_to_relative_path(request.reference_keys[0])
+        assert relative_source is not None
+        (reference_root / relative_source).unlink()
         return result
 
 
@@ -122,14 +169,14 @@ class MixedScopeDetailAnalysisProvider(ImageGenerationProvider):
                     id="crop-eyes",
                     kind="eyes",
                     description="Blue eyes.",
-                    source_reference_key="front:references/upload-a/front.webp",
+                    source_reference_key=request.reference_keys[0],
                     bbox={"x": 0.2, "y": 0.2, "width": 0.4, "height": 0.2},
                 ),
                 DetailAnalysisProviderCrop(
                     id="crop-pose",
                     kind="other",
                     description="Hands forming a heart pose.",
-                    source_reference_key="front:references/upload-a/front.webp",
+                    source_reference_key=request.reference_keys[0],
                     bbox={"x": 0.1, "y": 0.55, "width": 0.5, "height": 0.35},
                 ),
             ],
@@ -311,6 +358,29 @@ def test_parse_detail_analysis_json_normalizes_codex_aliases_and_bbox_arrays():
     assert result.crops[3].bbox == {"x": 0.45, "y": 0.47, "width": 0.13, "height": 0.07}
 
 
+def test_filter_head_detail_analysis_result_limits_crop_count():
+    crops = [
+        DetailAnalysisProviderCrop(
+            id=f"crop-{index}",
+            kind="hair",
+            description=f"Hair detail {index}",
+            source_reference_key="front:references/upload-a/front.webp",
+            bbox={"x": 0.1, "y": 0.1, "width": 0.2, "height": 0.2},
+        )
+        for index in range(MAX_DETAIL_CROPS + 3)
+    ]
+
+    result = filter_head_detail_analysis_result(
+        DetailAnalysisProviderResult(features=[], crops=crops, warnings=[])
+    )
+
+    assert len(result.crops) == MAX_DETAIL_CROPS
+    assert [crop.id for crop in result.crops] == [f"crop-{index}" for index in range(MAX_DETAIL_CROPS)]
+    assert result.warnings == [
+        f"Truncated 3 detail crop(s) to stay within the limit of {MAX_DETAIL_CROPS}."
+    ]
+
+
 def test_parse_detail_analysis_json_normalizes_ear_aliases_for_features_and_crops():
     result = parse_detail_analysis_json(
         """
@@ -388,6 +458,16 @@ def test_detail_kind_schemas_accept_user_requirement() -> None:
     assert feature.kind == "requirement"
 
 
+def test_reference_safety_prompt_rejects_real_people_and_unusable_images() -> None:
+    prompt = REFERENCE_SAFETY_PROMPT.lower()
+
+    assert "real human" in prompt
+    assert "photo" in prompt
+    assert "no person" in prompt or "no character" in prompt
+    assert "meaningless" in prompt
+    assert "unusable_reference" in prompt
+
+
 def test_parse_detail_analysis_json_normalizes_localized_crop_kinds_and_bbox_arrays() -> None:
     result = parse_detail_analysis_json(
         """
@@ -417,12 +497,15 @@ async def test_detail_analysis_endpoint_calls_provider_and_serves_crop(
     test_app,
     async_client: AsyncClient,
 ):
+    await register_user(async_client)
+    me_before = await async_client.get("/api/auth/me")
+    assert me_before.status_code == 200
+    remaining_before = me_before.json()["daily_generation_remaining"]
+    object_key = await upload_reference_image(async_client)
+    reference_key = f"front:{object_key}"
     provider = DetailAnalysisProvider()
     test_app.dependency_overrides[get_generation_provider] = lambda: provider
     reference_root = resolve_repo_path(get_settings().reference_upload_dir)
-    source = reference_root / "upload-a" / "front.webp"
-    source.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (200, 160), "white").save(source)
 
     try:
         response = await async_client.post(
@@ -431,10 +514,10 @@ async def test_detail_analysis_endpoint_calls_provider_and_serves_crop(
                 "character_session_id": "session-a",
                 "free_text": "keep the X hair clip",
                 "requirement_ids": ["keep_expression"],
-                "reference_keys": [" front:references/upload-a/front.webp "],
+                "reference_keys": [f" {reference_key} "],
                 "reference_descriptions": [
                     {
-                        "reference_key": "front:references/upload-a/front.webp",
+                        "reference_key": reference_key,
                         "description": "  front reference  ",
                     }
                 ],
@@ -443,6 +526,9 @@ async def test_detail_analysis_endpoint_calls_provider_and_serves_crop(
 
         assert response.status_code == 200
         payload = response.json()
+        me_after = await async_client.get("/api/auth/me")
+        assert me_after.status_code == 200
+        assert me_after.json()["daily_generation_remaining"] == remaining_before
         assert payload["analysis_id"]
         assert payload["features"][0] == {
             "id": "feature-user-requirement",
@@ -458,10 +544,10 @@ async def test_detail_analysis_endpoint_calls_provider_and_serves_crop(
         assert provider.request.analysis_id == payload["analysis_id"]
         assert provider.request.character_session_id == "session-a"
         assert provider.request.free_text == "keep the X hair clip"
-        assert provider.request.reference_keys == ["front:references/upload-a/front.webp"]
+        assert provider.request.reference_keys == [reference_key]
         assert provider.request.reference_descriptions == [
             {
-                "reference_key": "front:references/upload-a/front.webp",
+                "reference_key": reference_key,
                 "description": "front reference",
             }
         ]
@@ -474,7 +560,6 @@ async def test_detail_analysis_endpoint_calls_provider_and_serves_crop(
         assert crop_response.headers["content-type"].startswith("image/webp")
     finally:
         test_app.dependency_overrides.clear()
-        shutil.rmtree(reference_root / "upload-a", ignore_errors=True)
         if "payload" in locals():
             shutil.rmtree(reference_root / payload["analysis_id"], ignore_errors=True)
 
@@ -483,12 +568,12 @@ async def test_detail_analysis_endpoint_crops_from_reference_snapshot(
     test_app,
     async_client: AsyncClient,
 ):
+    await register_user(async_client)
+    object_key = await upload_reference_image(async_client)
+    reference_key = f"front:{object_key}"
     provider = RemovingSourceDetailAnalysisProvider()
     test_app.dependency_overrides[get_generation_provider] = lambda: provider
     reference_root = resolve_repo_path(get_settings().reference_upload_dir)
-    source = reference_root / "upload-a" / "front.webp"
-    source.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (200, 160), "white").save(source)
 
     try:
         response = await async_client.post(
@@ -496,7 +581,7 @@ async def test_detail_analysis_endpoint_crops_from_reference_snapshot(
             json={
                 "character_session_id": "session-a",
                 "free_text": "",
-                "reference_keys": ["front:references/upload-a/front.webp"],
+                "reference_keys": [reference_key],
             },
         )
 
@@ -508,7 +593,45 @@ async def test_detail_analysis_endpoint_crops_from_reference_snapshot(
         assert crop_response.status_code == 200
     finally:
         test_app.dependency_overrides.clear()
-        shutil.rmtree(reference_root / "upload-a", ignore_errors=True)
+        if "payload" in locals():
+            shutil.rmtree(reference_root / payload["analysis_id"], ignore_errors=True)
+
+
+async def test_detail_analysis_endpoint_handles_snapshot_source_loss(
+    test_app,
+    async_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.generation import router as generation_router
+
+    await register_user(async_client)
+    object_key = await upload_reference_image(async_client)
+    reference_key = f"front:{object_key}"
+    provider = RemovingSourceDetailAnalysisProvider()
+    test_app.dependency_overrides[get_generation_provider] = lambda: provider
+    reference_root = resolve_repo_path(get_settings().reference_upload_dir)
+
+    def fail_copy(*_args, **_kwargs):
+        raise FileNotFoundError("source disappeared during snapshot")
+
+    monkeypatch.setattr(generation_router.shutil, "copy2", fail_copy)
+
+    try:
+        response = await async_client.post(
+            "/api/generation/detail-analysis",
+            json={
+                "character_session_id": "session-a",
+                "free_text": "",
+                "reference_keys": [reference_key],
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["crops"] == []
+        assert any("Skipped crop crop-headwear" in warning for warning in payload["warnings"])
+    finally:
+        test_app.dependency_overrides.clear()
         if "payload" in locals():
             shutil.rmtree(reference_root / payload["analysis_id"], ignore_errors=True)
 
@@ -517,6 +640,8 @@ async def test_detail_analysis_endpoint_places_provider_user_requirement_feature
     test_app,
     async_client: AsyncClient,
 ):
+    await register_user(async_client)
+    object_key = await upload_reference_image(async_client)
     test_app.dependency_overrides[get_generation_provider] = lambda: UserRequirementDetailProvider()
 
     try:
@@ -525,7 +650,7 @@ async def test_detail_analysis_endpoint_places_provider_user_requirement_feature
             json={
                 "character_session_id": "session-requirement",
                 "free_text": "重点保留黑色 X 发夹、长直发、委屈表情",
-                "reference_keys": ["front:references/upload-a/front.webp"],
+                "reference_keys": [f"front:{object_key}"],
             },
         )
 
@@ -545,11 +670,11 @@ async def test_detail_analysis_endpoint_filters_non_head_provider_details(
     test_app,
     async_client: AsyncClient,
 ):
+    await register_user(async_client)
+    object_key = await upload_reference_image(async_client)
+    reference_key = f"front:{object_key}"
     test_app.dependency_overrides[get_generation_provider] = lambda: MixedScopeDetailAnalysisProvider()
     reference_root = resolve_repo_path(get_settings().reference_upload_dir)
-    source = reference_root / "upload-a" / "front.webp"
-    source.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", (200, 160), "white").save(source)
 
     try:
         response = await async_client.post(
@@ -557,7 +682,7 @@ async def test_detail_analysis_endpoint_filters_non_head_provider_details(
             json={
                 "character_session_id": "session-filter",
                 "free_text": "",
-                "reference_keys": ["front:references/upload-a/front.webp"],
+                "reference_keys": [reference_key],
             },
         )
 
@@ -568,7 +693,6 @@ async def test_detail_analysis_endpoint_filters_non_head_provider_details(
         assert payload["warnings"] == []
     finally:
         test_app.dependency_overrides.clear()
-        shutil.rmtree(reference_root / "upload-a", ignore_errors=True)
         if "payload" in locals():
             shutil.rmtree(reference_root / payload["analysis_id"], ignore_errors=True)
 
@@ -577,7 +701,9 @@ async def test_detail_analysis_passes_normalized_locale_to_provider(
     test_app,
     async_client: AsyncClient,
 ) -> None:
+    await register_user(async_client)
     for locale, expected_locale in [("en", "en"), ("fr", "zh-CN")]:
+        object_key = await upload_reference_image(async_client)
         provider = DetailAnalysisProvider()
         test_app.dependency_overrides[get_generation_provider] = lambda: provider
         try:
@@ -587,9 +713,7 @@ async def test_detail_analysis_passes_normalized_locale_to_provider(
                     "character_session_id": f"session-locale-{locale}",
                     "free_text": "",
                     "locale": locale,
-                    "reference_keys": [
-                        f"front:references/session-locale-{locale}/front.webp"
-                    ],
+                    "reference_keys": [f"front:{object_key}"],
                     "requirement_ids": [],
                 },
             )
@@ -605,6 +729,7 @@ async def test_detail_analysis_endpoint_rejects_blank_reference_keys_without_pro
     test_app,
     async_client: AsyncClient,
 ):
+    await register_user(async_client)
     provider = DetailAnalysisProvider()
     test_app.dependency_overrides[get_generation_provider] = lambda: provider
 
@@ -628,6 +753,8 @@ async def test_detail_analysis_endpoint_returns_controlled_error_for_provider_fa
     test_app,
     async_client: AsyncClient,
 ):
+    await register_user(async_client)
+    object_key = await upload_reference_image(async_client)
     test_app.dependency_overrides[get_generation_provider] = lambda: FailingDetailAnalysisProvider()
 
     try:
@@ -635,7 +762,7 @@ async def test_detail_analysis_endpoint_returns_controlled_error_for_provider_fa
             "/api/generation/detail-analysis",
             json={
                 "free_text": "keep the X hair clip",
-                "reference_keys": ["front:references/upload-a/front.webp"],
+                "reference_keys": [f"front:{object_key}"],
             },
         )
 
@@ -651,6 +778,8 @@ async def test_detail_analysis_endpoint_returns_controlled_error_for_rejected_re
     test_app,
     async_client: AsyncClient,
 ):
+    await register_user(async_client)
+    object_key = await upload_reference_image(async_client)
     test_app.dependency_overrides[get_generation_provider] = lambda: RejectingDetailAnalysisProvider(reason)
 
     try:
@@ -658,7 +787,7 @@ async def test_detail_analysis_endpoint_returns_controlled_error_for_rejected_re
             "/api/generation/detail-analysis",
             json={
                 "free_text": "keep the hair",
-                "reference_keys": ["front:references/upload-a/front.webp"],
+                "reference_keys": [f"front:{object_key}"],
             },
         )
 
@@ -669,6 +798,8 @@ async def test_detail_analysis_endpoint_returns_controlled_error_for_rejected_re
 
 
 async def test_reference_asset_route_rejects_path_traversal(async_client: AsyncClient):
+    await register_user(async_client)
+
     response = await async_client.get("/api/references/references/../.env")
     encoded_response = await async_client.get("/api/references/references/%2e%2e/.env")
 
